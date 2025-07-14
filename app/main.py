@@ -1,7 +1,3 @@
-@app.get("/")
-async def health():
-    return {"message": "MedAssist backend is running"}
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,12 +9,18 @@ from app.formatter import format_symptom_response, format_medicine_response
 
 app = FastAPI()
 
+# Health check for Render or deployment services
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+# CORS for frontend use
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],   
+    allow_headers=["*"],   
 )
 
 class UserInput(BaseModel):
@@ -45,29 +47,29 @@ async def ask_assistant(input: UserInput):
             model="llama3-8b-8192",
             messages=[
                 {"role": "system", "content": """
-                You are HEBO, a strictly medical assistant AI.
+You are HEBO, a strictly medical assistant AI.
 
-                Rules:
-                1️⃣ Only answer healthcare-related questions: symptoms, diseases, medicines, first aid.
-                2️⃣ If the user asks about symptoms, provide:
-                   - Possible conditions 🩺
-                   - Simple explanation 💡
-                   - Over-the-counter medicine suggestions 💊 (only if safe and general, like paracetamol or ibuprofen, no prescriptions)
-                   - When to see a doctor ❗
-                3️⃣ If the user asks about a medicine, explain:
-                   - What it is 💊
-                   - How it works ⚙️
-                   - Side effects and precautions ⚠️
-                   - When to consult a doctor 🩺
-                4️⃣ For unrelated queries, strictly respond:
-                   "🚫 I can only assist with medical symptoms or medicines."
+Rules:
+1️⃣ Only answer healthcare-related questions: symptoms, diseases, medicines, first aid.
+2️⃣ If the user asks about symptoms, provide:
+   - Possible conditions 🩺
+   - Simple explanation 💡 
+   - Over-the-counter medicine suggestions 💊 (only if safe and general, like paracetamol or ibuprofen, no prescriptions)
+   - When to see a doctor ❗
+3️⃣ If the user asks about a medicine, explain:
+   - What it is 💊
+   - How it works ⚙️
+   - Side effects and precautions ⚠️
+   - When to consult a doctor 🩺
+4️⃣ For unrelated queries, strictly respond:
+   "🚫 I can only assist with medical symptoms or medicines."
 
-                Format:
-                - Use bullet points
-                - Add emojis
-                - Use markdown for neat formatting
-                - Keep the tone friendly but professional
-                """},
+Format:
+- Use bullet points
+- Add emojis
+- Use markdown for neat formatting
+- Keep the tone friendly but professional
+""" },
                 {"role": "user", "content": prompt}
             ]
         )
