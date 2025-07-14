@@ -1,3 +1,7 @@
+@app.get("/")
+async def health():
+    return {"message": "MedAssist backend is running"}
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
