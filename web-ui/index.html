@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>MedAssist</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>🩺 MedAssist</h2>
+    <p>Type or speak your symptoms or questions:</p>
+    <textarea id="userInput" placeholder="Describe your symptoms here..."></textarea><br/>
+    <button onclick="sendText()">Ask</button>
+    <button onclick="startVoice()">🎙️ Voice Input</button>
+    <p id="response"></p>
+
+    <script>
+        const backendURL = "http://192.168.0.2:8000/ask";
+
+        async function sendText() {
+            const input = document.getElementById("userInput").value.trim();
+            if (!input) {
+                alert("Please enter a symptom or question.");
+                return;
+            }
+
+            document.getElementById("response").innerText = "⏳ Thinking...";
+
+            try {
+                const res = await fetch(backendURL + "/ask", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: input })
+                });
+                const data = await res.json();
+                document.getElementById("response").innerText = data.answer || "❌ No response.";
+            } catch (err) {
+                console.error(err);
+                document.getElementById("response").innerText = "❌ Error contacting the server.";
+            }
+        }
+
+        function startVoice() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert("Speech recognition not supported in this browser.");
+                return;
+            }
+
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                document.getElementById("response").innerText = "🎤 Listening...";
+            };
+
+            recognition.onerror = (event) => {
+                console.error(event.error);
+                document.getElementById("response").innerText = `❌ Voice error: ${event.error}`;
+
+                if (event.error === "not-allowed") {
+                    alert("Microphone access denied. Please allow microphone permissions or use text input.");
+                }
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById("userInput").value = transcript;
+                sendText();
+            };
+
+            recognition.start();
+        }
+    </script>
+</body>
+</html>

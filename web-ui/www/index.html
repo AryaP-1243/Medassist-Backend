@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MedAssist 🩺</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            text-align: center;
+            padding: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        #output {
+            white-space: pre-wrap;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        button, select, input {
+            margin-top: 10px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #logo {
+            width: 100px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <img src="icon-192.png" id="logo" alt="MedAssist Logo">
+    <h1>MedAssist 🩺</h1>
+
+    <select id="inputType">
+        <option value="symptom">Symptom Checker</option>
+        <option value="medicine">Medicine Explainer</option>
+    </select><br>
+
+    <input type="text" id="textInput" placeholder="Type your query..." size="40"><br>
+
+    <button onclick="sendText()">Ask</button>
+    <button onclick="startVoice()">🎙️ Speak</button>
+
+    <div id="output">Response will appear here...</div>
+
+    <script>
+        const backendURL = "http://192.168.0.2:8000/ask";
+
+        async function sendRequest(message, type) {
+            document.getElementById('output').innerText = "⏳ Processing...";
+            try {
+                const res = await fetch(backendURL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: message, type: type })
+                });
+                const data = await res.json();
+                document.getElementById('output').innerHTML = data.response;
+            } catch (err) {
+                document.getElementById('output').innerText = "❌ Error: " + err.message;
+            }
+        }
+
+        function sendText() {
+            const message = document.getElementById('textInput').value;
+            const type = document.getElementById('inputType').value;
+            if (message.trim() === "") {
+                alert("Please enter a query.");
+                return;
+            }
+            sendRequest(message, type);
+        }
+
+        function startVoice() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert("Voice recognition not supported in this browser.");
+                return;
+            }
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+
+            recognition.onresult = function(event) {
+                const message = event.results[0][0].transcript;
+                document.getElementById('textInput').value = message;
+                sendText();
+            };
+
+            recognition.onerror = function(event) {
+                document.getElementById('output').innerText = "❌ Voice error: " + event.error;
+            };
+
+            recognition.start();
+        }
+    </script>
+
+</body>
+</html>

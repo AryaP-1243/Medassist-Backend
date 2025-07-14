@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:MyTool">
+   </FileRef>
+   <Group
+      location = "container:../capacitor-cordova-ios-plugins"
+      name = "capacitor-cordova-ios-plugins">
+      <FileRef
+         location = "group:CordovaPlugins.podspec">
+      </FileRef>
+      <FileRef
+         location = "group:CordovaPluginsResources.podspec">
+      </FileRef>
+      <Group
+         location = "group:resources"
+         name = "resources">
+      </Group>
+      <Group
+         location = "group:sources"
+         name = "sources">
+      </Group>
+      <FileRef
+         location = "group:CordovaPluginsStatic.podspec">
+      </FileRef>
+   </Group>
+</Workspace>
