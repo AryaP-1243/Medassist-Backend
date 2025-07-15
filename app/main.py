@@ -4,23 +4,15 @@ from pydantic import BaseModel
 from groq import Groq
 import os
 
-from app.prompts import symptom_checker_prompt, medicine_explainer_prompt
-from app.formatter import format_symptom_response, format_medicine_response
-
 app = FastAPI()
 
-# Health check for Render or deployment services
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-# CORS for frontend use
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],   
-    allow_headers=["*"],   
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class UserInput(BaseModel):
@@ -33,55 +25,77 @@ if not api_key:
 
 client = Groq(api_key=api_key)
 
+# Health check
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.post("/ask")
 async def ask_assistant(input: UserInput):
     try:
+        # Use dynamic prompt with controlled randomness
+        prompt = ""
         if input.type == "symptom":
-            prompt = symptom_checker_prompt.format(message=input.message)
+            prompt = f"""
+You are HEBO, a strictly medical assistant AI.
+
+Patient says: "{input.message}"
+
+Respond with:
+
+🩺 **Possible Conditions**  
+- List 3 to 4 likely conditions.
+
+💊 **Medicine Suggestions**  
+- Recommend **safe over-the-counter medicines** for the symptoms.
+- Provide specific medicines (not just paracetamol), include variations if relevant.
+
+🛒 **Where to Buy**  
+- Give direct links using the medicine name:  
+[1mg](https://www.1mg.com/search/all?name=<MEDICINE>)  
+[Netmeds](https://www.netmeds.com/catalogsearch/result?q=<MEDICINE>)  
+[Apollo Pharmacy](https://www.apollopharmacy.in/search/<MEDICINE>)
+
+❗ **Disclaimer**  
+This is general advice. Consult a healthcare professional for serious cases.
+            """
         elif input.type == "medicine":
-            prompt = medicine_explainer_prompt.format(message=input.message)
+            prompt = f"""
+You are HEBO, a medical assistant. The user asked about "{input.message}".
+
+Provide:
+
+💊 **What It Does**  
+- Explain what the medicine is for.
+
+⚙️ **How It Works**  
+- Mechanism of action.
+
+⚠️ **Side Effects & Precautions**  
+- List the most common side effects.
+
+🛒 **Where to Buy**  
+Give direct links:  
+[1mg](https://www.1mg.com/search/all?name={input.message})  
+[Netmeds](https://www.netmeds.com/catalogsearch/result?q={input.message})  
+[Apollo Pharmacy](https://www.apollopharmacy.in/search/{input.message})
+
+❗ **Disclaimer**  
+This is for general information only.
+            """
         else:
-            raise HTTPException(status_code=400, detail="Invalid type. Use 'symptom' or 'medicine'.")
+            raise HTTPException(status_code=400, detail="Invalid type")
 
         response = client.chat.completions.create(
             model="llama3-8b-8192",
+            temperature=0,  # Deterministic output
             messages=[
-                {"role": "system", "content": """
-You are HEBO, a strictly medical assistant AI.
-
-Rules:
-1️⃣ Only answer healthcare-related questions: symptoms, diseases, medicines, first aid.
-2️⃣ If the user asks about symptoms, provide:
-   - Possible conditions 🩺
-   - Simple explanation 💡 
-   - Over-the-counter medicine suggestions 💊 (only if safe and general, like paracetamol or ibuprofen, no prescriptions)
-   - When to see a doctor ❗
-3️⃣ If the user asks about a medicine, explain:
-   - What it is 💊
-   - How it works ⚙️
-   - Side effects and precautions ⚠️
-   - When to consult a doctor 🩺
-4️⃣ For unrelated queries, strictly respond:
-   "🚫 I can only assist with medical symptoms or medicines."
-
-Format:
-- Use bullet points
-- Add emojis
-- Use markdown for neat formatting
-- Keep the tone friendly but professional
-""" },
+                {"role": "system", "content": "Only reply to medical-related queries. Use markdown."},
                 {"role": "user", "content": prompt}
             ]
         )
 
-        raw_reply = response.choices[0].message.content.strip()
-
-        if input.type == "symptom":
-            formatted = format_symptom_response(raw_reply)
-        else:
-            formatted = format_medicine_response(raw_reply)
-
-        return {"response": formatted}
+        return {"response": response.choices[0].message.content.strip()}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

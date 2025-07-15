@@ -1,0 +1,10 @@
+app = "medassist-backend-yourname" # Replace 'yourname' with something unique
+
+[build]
+
+[env]
+
+[http_service]
+internal_port = 8080
+force_https = true
+

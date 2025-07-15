@@ -1,5 +1,4 @@
-const backendURL = "http://192.168.0.2:8000/ask";
-
+const BACKEND_URL = "https://medassist.loca.lt/ask";
 document.getElementById("askBtn").onclick = async () => {
     const message = document.getElementById("message").value;
     if (!message) return alert("Please enter a message");

@@ -2,51 +2,123 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>🩺 MedAssist</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedAssist</title>
-    <link rel="manifest" href="/manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=1GZwuLG0"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            max-width: 600px;
-            margin: auto;
-            background: #f9f9f9;
-        }
-        h1 {
-            color: #2e7d32;
-        }
-        textarea {
-            width: 100%;
-            height: 100px;
-            font-size: 16px;
-            padding: 10px;
-            margin-top: 10px;
-        }
-        button {
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        h1 { color: #2e7d32; }
+        textarea { width: 100%; height: 150px; font-size: 18px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        button { padding: 12px 20px; margin: 10px 5px; border: none; border-radius: 8px; background: #4caf50; color: #fff; font-size: 18px; cursor: pointer; }
+        button.voice { background: #6a1b9a; }
+        select { padding: 10px; font-size: 16px; }
+        #output { white-space: pre-wrap; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); font-size: 17px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<h1>🩺 <b>MedAssist</b></h1>
+
+<textarea id="input" placeholder="Describe your symptoms or ask about a medicine..."></textarea><br>
+
 <select id="type">
     <option value="symptom">Symptom</option>
     <option value="medicine">Medicine</option>
 </select>
 
-<br>
+<select id="voiceLang">
+    <option value="en-IN">English (India)</option>
+    <option value="hi-IN">Hindi</option>
+    <option value="kn-IN">Kannada</option>
+    <option value="ta-IN">Tamil</option>
+    <option value="te-IN">Telugu</option>
+</select><br>
 
-<button id="askBtn">Ask</button>
-<button id="voiceBtn">🎙️ Voice Input</button>              }
-        #askBtn { background: #4CAF50; color: white; }
-        #voiceBtn { background: #8BC34A; color: white; }
-        #response { margin-top: 20px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); white-space: pre-wrap; }
-    </style>
-</head>
-<body>
-    <h1>🩺 MedAssist</h1>
-    <p>Type or speak your symptoms or questions:</p>
-    <textarea id="message"></textarea><br>
-    <button id="askBtn">Ask</button>
-    <button id="voiceBtn">🎙️ Voice Input</button>
+<button onclick="sendRequest()">Ask</button>
+<button class="voice" onclick="startVoiceInput()">🎤 Voice Input</button>
+<button onclick="speakSummary()">🔊 Speak</button>
+<button onclick="stopSpeaking()">⛔ Stop</button>
 
-    <div id="response">❌ No response.</div>
+<div id="output">Waiting for input...</div>
 
-    <script src="script.js"></script>
+<script>
+const BACKEND_URL = `/ask`;
+
+let lastSummary = "";
+
+async function sendRequest() {
+    const input = document.getElementById("input").value.trim();
+    const type = document.getElementById("type").value;
+    const output = document.getElementById("output");
+
+    if (!input) {
+        output.innerHTML = "❗ Please enter your query.";
+        return;
+    }
+
+    output.innerHTML = "⏳ Processing...";
+
+    try {
+        const res = await fetch(BACKEND_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: input, type: type })
+        });
+
+        const data = await res.json();
+        output.innerHTML = marked.parse(data.response);
+
+        // Prepare summary for speaking
+        lastSummary = extractSummary(data.response);
+    } catch (err) {
+        output.innerHTML = `❌ Error: ${err.message}`;
+    }
+}
+
+function extractSummary(text) {
+    const div = document.createElement("div");
+    div.innerHTML = marked.parse(text);
+    const plain = div.innerText;
+
+    let summary = "";
+    const lines = plain.split("\n");
+    for (let line of lines) {
+        if (line.toLowerCase().includes("possible") || line.toLowerCase().includes("medicine")) {
+            summary += line + ". ";
+        }
+    }
+    return summary || "This is a medical summary.";
+}
+
+function speakSummary() {
+    if (!lastSummary) {
+        alert("No summary available to speak.");
+        return;
+    }
+    const lang = document.getElementById("voiceLang").value;
+    responsiveVoice.speak(lastSummary, "Hindi Female", {lang: lang});
+}
+
+function stopSpeaking() {
+    responsiveVoice.cancel();
+}
+
+function startVoiceInput() {
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = "en-IN";
+    recognition.start();
+
+    recognition.onresult = (event) => {
+        document.getElementById("input").value = event.results[0][0].transcript;
+        sendRequest();
+    };
+
+    recognition.onerror = (event) => {
+        document.getElementById("output").innerHTML = `❌ Voice error: ${event.error}`;
+    };
+}
+</script>
+
 </body>
 </html>

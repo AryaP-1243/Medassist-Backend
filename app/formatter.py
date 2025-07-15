@@ -1,14 +1,7 @@
-def format_symptom_response(raw: str) -> str:
-    """
-    Returns the raw markdown response from the LLM.
-    Assumes the prompt enforces proper formatting.
-    """
-    return raw.strip()
+# app/formatter.py
 
+def format_symptom_response(text):
+    return text  # Keeping markdown as is for frontend to render nicely
 
-def format_medicine_response(raw: str) -> str:
-    """
-    Returns the raw markdown response from the LLM.
-    Assumes the prompt enforces proper formatting.
-    """
-    return raw.strip()
+def format_medicine_response(text):
+    return text
