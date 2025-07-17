@@ -2,47 +2,188 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>🩺 MedAssist</title>
+    <title>🩺 MedAssist - Global Healthcare Guide</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <style>
-        body { font-family: Arial, sans-serif; background: #eef3f7; padding: 20px; }
-        h1 { color: #2e7d32; }
-        textarea { width: 100%; height: 120px; font-size: 18px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
-        button { padding: 12px 24px; margin: 10px 5px; border: none; border-radius: 8px; background: #4caf50; color: white; font-size: 16px; cursor: pointer; }
-        button.voice { background: #6a1b9a; }
-        button.stop { background: #d32f2f; }
-        select { padding: 10px; font-size: 16px; margin-top: 10px; }
-        #output { white-space: pre-wrap; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin-top: 15px; }
+        body {
+            margin: 0; padding: 20px; font-family: 'Poppins', sans-serif;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%; animation: gradientBG 15s ease infinite;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh;
+            box-sizing: border-box; color: #333;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .container {
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
+            padding: 40px; border-radius: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.15);
+            width: 95%; max-width: 800px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        h1 {
+            text-align: center; font-size: 2.8em; font-weight: 700;
+            background: linear-gradient(45deg, #00796b, #48a999);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+        p.subtitle { text-align: center; color: #555; margin: 0 0 30px; font-size: 1.1em; }
+        .input-area {
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        textarea {
+            padding: 15px; font-size: 16px; border-radius: 14px; border: 1px solid #ddd; background: #fff;
+            width: 100%; resize: vertical; min-height: 80px; box-sizing: border-box;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .type-selection {
+            display: flex; gap: 15px; justify-content: center;
+        }
+        .type-button {
+            flex: 1; padding: 12px 20px; font-size: 16px; font-weight: 600;
+            background: #e0e0e0; color: #555; border: none; border-radius: 10px;
+            cursor: pointer; transition: all 0.3s ease;
+            text-align: center;
+        }
+        .type-button.active {
+            background: linear-gradient(90deg, #00796b, #48a999); color: white;
+            box-shadow: 0 4px 10px rgba(0,121,107,0.3);
+        }
+        .type-button:hover:not(.active) {
+            background: #d0d0d0; transform: translateY(-1px);
+        }
+        .button-group { display: flex; gap: 20px; margin-top: 10px; }
+        button {
+            flex: 1; padding: 15px; font-size: 17px; font-weight: 600;
+            background: linear-gradient(90deg, #00796b, #48a999); color: white; border: none; border-radius: 14px;
+            cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        button:active { transform: translateY(0); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        #output {
+            margin-top: 30px;
+            background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.08);
+            line-height: 1.7; color: #333; max-height: 400px; overflow-y: auto;
+        }
+
+        footer { margin-top: 40px; text-align: center; color: #fff; font-size: 0.88em; opacity: 0.9; }
+
+        /* Markdown styles */
+        #output h2, #output h3 { color: #00796b; }
+        #output table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        #output th, #output td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        #output th { background: #f2f2f2; }
     </style>
 </head>
 <body>
 
-    <h1>🩺 <b>MedAssist</b></h1>
+<div class="container">
+    <h1>MedAssist <i class="fa-solid fa-notes-medical"></i></h1>
+    <p class="subtitle">Your AI-powered medical guide. Ask about any symptom or medicine!</p>
 
-    <textarea id="input" placeholder="Describe your symptoms or ask about a medicine..."></textarea><br>
+    <div class="input-area">
+        <textarea id="input" placeholder="e.g., Tell me about Ibuprofen or I have chest pain"></textarea>
+        <div class="type-selection">
+            <button id="medicineBtn" class="type-button active" onclick="setType('medicine')">
+                <i class="fa-solid fa-pills"></i> Medicine
+            </button>
+            <button id="symptomBtn" class="type-button" onclick="setType('symptom')">
+                <i class="fa-solid fa-stethoscope"></i> Symptom
+            </button>
+        </div>
+    </div>
 
-    <select id="type">
-        <option value="symptom">Symptom</option>
-        <option value="medicine">Medicine</option>
-    </select>
+    <div class="button-group">
+        <button onclick="sendRequest()"><i class="fa-solid fa-paper-plane"></i> Get Insights</button>
+        <button onclick="startVoiceInput()"><i class="fa-solid fa-microphone"></i> Voice Input</button>
+    </div>
 
-    <select id="voiceLang">
-        <option value="en-IN">Indian English</option>
-        <option value="hi-IN">Hindi</option>
-        <option value="kn-IN">Kannada</option>
-        <option value="ta-IN">Tamil</option>
-        <option value="te-IN">Telugu</option>
-    </select><br>
+    <div id="output">
+        <p>I'm ready to help! Your medical insights will appear here. 📝</p>
+    </div>
+</div>
 
-    <button onclick="sendRequest()">Ask</button>
-    <button class="voice" onclick="startVoiceInput()">🎤 Speak Input</button>
-    <button onclick="speakSummary()">🔊 Speak Summary</button>
-    <button class="stop" onclick="stopSpeaking()">⏹️ Stop Voice</button>
+<footer>
+    © 2025 MedAssist | Built with ❤️ for global healthcare. All rights reserved.
+</footer>
 
-    <div id="output">Waiting for input...</div>
+<script>
+const BACKEND_URL = "http://localhost:10000/ask"; // Replace with Render URL if deployed
 
-    <script src="script.js"></script>
+let currentType = 'medicine';
+
+function setType(type) {
+    currentType = type;
+    document.getElementById('medicineBtn').classList.remove('active');
+    document.getElementById('symptomBtn').classList.remove('active');
+    document.getElementById(type + 'Btn').classList.add('active');
+}
+
+async function sendRequest() {
+    const input = document.getElementById('input').value.trim();
+    const output = document.getElementById('output');
+
+    if (!input) {
+        output.innerHTML = "<p style='color:red;'>❗ Please enter your query.</p>";
+        return;
+    }
+
+    output.innerHTML = "<p>⏳ Processing...</p>";
+
+    try {
+        const res = await fetch(BACKEND_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: input, type: currentType })
+        });
+
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        output.innerHTML = marked.parse(data.response);
+
+    } catch (err) {
+        output.innerHTML = `<p style="color:red;">❌ Error fetching data: ${err.message}</p>`;
+    }
+}
+</script>
+
+<script>
+// Your sendRequest function here (keep as is)
+
+// Add the voice input function here
+function startVoiceInput() {
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    if (!recognition) {
+        alert("Voice Recognition not supported.");
+        return;
+    }
+
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.start();
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById("input").value = transcript;
+        sendRequest();
+    };
+
+    recognition.onerror = (event) => {
+        document.getElementById('output').innerHTML = `<p style="color:red;">Voice input error: ${event.error}</p>`;
+    };
+}
+</script>
 
 </body>
 </html>
