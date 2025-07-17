@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>🩺 MedAssist - Global Health AI</title>
+    <title>🩺 MedAssist - Your AI Health Partner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
@@ -13,8 +14,7 @@
             margin: 0; padding: 20px; font-family: 'Poppins', sans-serif;
             background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
             background-size: 400% 400%; animation: gradientBG 15s ease infinite;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh;
-            box-sizing: border-box; color: #333;
+            display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; color: #333;
         }
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
@@ -24,22 +24,19 @@
         .container {
             background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
             padding: 40px; border-radius: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.15);
-            width: 95%; max-width: 800px;
-            display: flex; flex-direction: column; gap: 20px;
-            <input id="email" placeholder="Enter your email to continue" style="padding:10px; border-radius:10px; width:100%; margin-bottom:10px;">
-
-<div id="historySection" style="background:#f8f8f8; padding:15px; margin-top:20px; border-radius:12px;">
-    <h3>🗂️ Previous History</h3>
-    <ul id="historyList" style="list-style-type:circle; padding-left:20px;"></ul>
-</div>
+            width: 95%; max-width: 900px; display: flex; gap: 20px;
+        }
+        .left-panel {
+            width: 30%; background: #fff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow-y: auto; max-height: 500px;
+        }
+        .right-panel {
+            flex: 1; display: flex; flex-direction: column; gap: 15px;
         }
         h1 {
             text-align: center; font-size: 2.8em; font-weight: 700;
             background: linear-gradient(45deg, #00796b, #48a999); 
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            margin-bottom: 5px;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 5px;
         }
-        p.subtitle { text-align: center; color: #555; margin: 0 0 30px; font-size: 1.1em; }
         .input-area { display: flex; flex-direction: column; gap: 15px; }
         textarea {
             padding: 15px; font-size: 16px; border-radius: 14px; border: 1px solid #ddd; background: #fff;
@@ -49,15 +46,13 @@
         .type-selection { display: flex; gap: 15px; justify-content: center; }
         .type-button {
             flex: 1; padding: 12px 20px; font-size: 16px; font-weight: 600;
-            background: #e0e0e0; color: #555; border: none; border-radius: 10px; 
-            cursor: pointer; transition: all 0.3s ease; text-align: center;
+            background: #e0e0e0; color: #555; border: none; border-radius: 10px; cursor: pointer;
+            transition: all 0.3s ease; text-align: center;
         }
         .type-button.active {
             background: linear-gradient(90deg, #00796b, #48a999); color: white;
             box-shadow: 0 4px 10px rgba(0,121,107,0.3);
         }
-        .type-button:hover:not(.active) { background: #d0d0d0; transform: translateY(-1px); }
-
         .button-group { display: flex; gap: 20px; margin-top: 10px; }
         button {
             flex: 1; padding: 15px; font-size: 17px; font-weight: 600;
@@ -66,14 +61,12 @@
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
-        button:active { transform: translateY(0); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        
         #output {
-            margin-top: 30px;
-            background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.08);
+            background: #fff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.08);
             line-height: 1.7; color: #333; max-height: 400px; overflow-y: auto;
         }
-
+        .history-item { margin-bottom: 10px; font-size: 0.9em; color: #555; }
+        .user-info { margin-top: 20px; font-size: 0.85em; color: #333; border-top: 1px solid #eee; padding-top: 10px; }
         #login-modal {
             display: none; position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
             background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
@@ -82,40 +75,39 @@
         #login-modal input, #login-modal textarea {
             width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd;
         }
-        #login-modal button {
-            background: #00796b; color: white; border: none; padding: 10px 20px; border-radius: 8px; width: 100%;
-        }
-
+        #login-modal button { background: #00796b; color: white; border: none; padding: 10px 20px; border-radius: 8px; width: 100%; }
         footer { margin-top: 40px; text-align: center; color: #fff; font-size: 0.88em; opacity: 0.9; }
-        
-        @media(max-width: 600px) {
-            .type-selection, .button-group { flex-direction: column; gap: 10px; }
-            .container { padding: 30px; }
-            h1 { font-size: 2.2em; }
+        @media(max-width: 700px) {
+            .container { flex-direction: column; }
+            .left-panel { width: 100%; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>MedAssist <i class="fa-solid fa-notes-medical"></i></h1>
-    <p class="subtitle">Your Global AI Health Guide. Track your health and ask me anything.</p>
-
-    <div class="input-area">
-        <textarea id="input" placeholder="e.g., Tell me about Aspirin or I have a sore throat"></textarea>
-        <div class="type-selection">
-            <button id="medicineBtn" class="type-button active" onclick="setType('medicine')"><i class="fa-solid fa-pills"></i> Medicine</button>
-            <button id="symptomBtn" class="type-button" onclick="setType('symptom')"><i class="fa-solid fa-stethoscope"></i> Symptom</button>
+    <div class="left-panel">
+        <h3>History</h3>
+        <div id="history"></div>
+        <div class="user-info">
+            <strong>User:</strong> <span id="user-details">Not Logged In</span>
         </div>
     </div>
 
-    <div class="button-group">
-        <button onclick="sendRequest()"><i class="fa-solid fa-paper-plane"></i> Get Insights</button>
-        <button onclick="startVoiceInput()"><i class="fa-solid fa-microphone"></i> Voice Input</button>
-    </div>
-
-    <div id="output">
-        I'm ready to help! Your health insights will appear here. 📝
+    <div class="right-panel">
+        <h1>MedAssist <i class="fa-solid fa-notes-medical"></i></h1>
+        <div class="input-area">
+            <textarea id="input" placeholder="e.g., Tell me about Aspirin or I have a sore throat"></textarea>
+            <div class="type-selection">
+                <button id="medicineBtn" class="type-button active" onclick="setType('medicine')"><i class="fa-solid fa-pills"></i> Medicine</button>
+                <button id="symptomBtn" class="type-button" onclick="setType('symptom')"><i class="fa-solid fa-stethoscope"></i> Symptom</button>
+            </div>
+        </div>
+        <div class="button-group">
+            <button onclick="sendRequest()"><i class="fa-solid fa-paper-plane"></i> Get Insights</button>
+            <button onclick="startVoiceInput()"><i class="fa-solid fa-microphone"></i> Voice Input</button>
+        </div>
+        <div id="output">I'm ready to help! Your health insights will appear here. 📝</div>
     </div>
 </div>
 
@@ -123,10 +115,9 @@
     © 2025 MedAssist | Built with ❤️ for global healthcare.
 </footer>
 
-<!-- Login Modal -->
 <div id="login-modal">
     <h3>Login to Continue</h3>
-    <input id="email" placeholder="Enter your email">
+    <input id="email" placeholder="Email or Phone">
     <textarea id="food" placeholder="What did you eat in the last 3-4 days?"></textarea>
     <button onclick="submitLogin()">Submit</button>
 </div>
@@ -134,8 +125,9 @@
 <script>
 const BACKEND_URL = "https://medassist-backend-jp57.onrender.com/ask";
 let currentType = 'medicine';
-let userEmail = '';
+let userContact = '';
 let foodHistory = '';
+let historyList = [];
 
 function setType(type) {
     currentType = type;
@@ -153,11 +145,10 @@ function startVoiceInput() {
         document.getElementById("input").value = event.results[0][0].transcript;
         sendRequest();
     };
-    recognition.onerror = (event) => alert("Voice input error: " + event.error);
 }
 
 function checkLogin() {
-    if (!userEmail) {
+    if (!userContact) {
         document.getElementById('login-modal').style.display = 'block';
         return false;
     }
@@ -165,57 +156,45 @@ function checkLogin() {
 }
 
 function submitLogin() {
-    userEmail = document.getElementById('email').value.trim();
+    userContact = document.getElementById('email').value.trim();
     foodHistory = document.getElementById('food').value.trim();
     document.getElementById('login-modal').style.display = 'none';
+    document.getElementById('user-details').innerText = userContact;
 }
 
-<script>
-
-const BACKEND_URL = "https://medassist-backend-jp57.onrender.com/ask";
+function updateHistory(input) {
+    historyList.unshift(input);
+    document.getElementById('history').innerHTML = historyList.map(item => `<div class="history-item">• ${item}</div>`).join('');
+}
 
 async function sendRequest() {
+    if (!checkLogin()) return;
     const input = document.getElementById('input').value.trim();
-    const email = document.getElementById('email').value.trim();
     const output = document.getElementById('output');
-
-    if (!input || !email) {
-        output.innerHTML = "<p style='color:red;'>❗ Please enter your query and email.</p>";
+    if (!input) {
+        output.innerHTML = "<p style='color:red;'>❗ Please enter your query.</p>";
         return;
     }
-
     output.innerHTML = "<p>⏳ Processing...</p>";
+    updateHistory(input);
 
     try {
         const res = await fetch(BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: input, type: currentType, email: email })
+            body: JSON.stringify({ message: input, type: currentType, email: userContact, phone: userContact, food_history: foodHistory })
         });
-
         const data = await res.json();
+        output.innerHTML = marked.parse(data.response);
 
-        if (data.response) {
-            output.innerHTML = marked.parse(data.response);
-            updateHistory(data.history);
-        } else {
-            output.innerHTML = `<p style="color:red;">❌ Error: ${data.detail}</p>`;
+        if (data.response.includes("🎉")) {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
     } catch (err) {
-        output.innerHTML = `<p style="color:red;">❌ Error fetching data: ${err.message}</p>`;
+        output.innerHTML = `<p style="color:red;">❌ Error: ${err.message}</p>`;
     }
 }
-
-function updateHistory(history) {
-    const historyList = document.getElementById('historyList');
-    historyList.innerHTML = ''; // Clear previous
-
-    history.reverse().slice(0, 5).forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = `[${item.type}] ${item.message}`;
-        historyList.appendChild(li);
-    });
-}
 </script>
+
 </body>
 </html>

@@ -1,128 +1,137 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import json
-import os
-from datetime import datetime
 from groq import Groq
+import os, json, random, time
+from datetime import datetime
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
 )
 
 class UserInput(BaseModel):
     message: str
     type: str
-    email: str
+    email: str = None
+    phone: str = None
+    food_history: str = None
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 DATA_FILE = "users_data.json"
-
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
         json.dump({}, f)
 
-api_key = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=api_key)
-
-def load_user_data():
+def save_user_data(email_or_phone, query, query_type, food=None):
     with open(DATA_FILE, "r") as f:
-        return json.load(f)
+        data = json.load(f)
 
-def save_user_data(data):
+    if email_or_phone not in data:
+        data[email_or_phone] = {"history": [], "food": food}
+
+    data[email_or_phone]["history"].append({
+        "message": query,
+        "type": query_type,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    if food:
+        data[email_or_phone]["food"] = food
+
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f)
+
+def calculate_health_score(food_history):
+    bad_food = ["burger", "pizza", "mutton", "oily", "fried", "dessert", "cola", "alcohol"]
+    good_food = ["salad", "fruits", "vegetable", "dal", "chapati", "protein", "green", "broccoli"]
+
+    score = 70
+    if any(x in food_history.lower() for x in bad_food):
+        score -= 20
+    if any(x in food_history.lower() for x in good_food):
+        score += 20
+    return min(max(score, 10), 100)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 @app.post("/ask")
 async def ask(input: UserInput):
     try:
-        data = load_user_data()
+        user_id = input.email or input.phone
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Email or phone required.")
 
-        # Store user history
-        if input.email not in data:
-            data[input.email] = {"history": [], "food": []}
+        save_user_data(user_id, input.message, input.type, input.food_history)
 
-        user_record = data[input.email]
+        health_score = None
+        if input.food_history:
+            health_score = calculate_health_score(input.food_history)
 
-        log_entry = {
-            "message": input.message,
-            "type": input.type,
-            "timestamp": datetime.now().isoformat()
-        }
-        user_record["history"].append(log_entry)
-
-        save_user_data(data)
-
-        # Build prompt dynamically
-        system_message = "You are MedAssist, a professional healthcare AI assistant. Use markdown formatting."
+        base_system = "You are MedAssist, a professional AI doctor assistant. Respond in markdown with helpful, warm, non-repetitive, real-world answers. Give direct medicine suggestions with 1mg links."
 
         if input.type == "symptom":
             prompt = f"""
-User said: {input.message}
+User: {input.message}
 
-Provide:
+Respond as:
 
-## 🩺 Symptom Info
+## 🩺 Symptom Assessment
 
-### Possible Causes:
-- List 3 possible causes for the symptom.
+### Possible Causes
+[List top causes for {input.message}]
 
-### Home Remedies:
-- List 2 simple home remedies.
+### Home Remedies
+[Give 2-3 home remedies.]
 
-### Medicines:
-- List 2 over-the-counter medicines for this symptom.
+### Recommended Medicines
+- Paracetamol: [Buy on 1mg](https://www.1mg.com/search/all?name=Paracetamol)
+- Ibuprofen: [Buy on 1mg](https://www.1mg.com/search/all?name=Ibuprofen)
 
-### Health Score Impact:
-- Based on previous food: {user_record['food']}
-- Explain if this symptom could be linked to recent food behavior.
+### Health Score: {health_score if health_score else 'N/A'}
+{ '🎉 Excellent! Keep it up.' if health_score and health_score > 80 else '' }
 
----
-**Note:** Always consult a healthcare provider.
+**Disclaimer**: This is for informational purposes only.
 """
-
         elif input.type == "medicine":
-            med_name = input.message.lower().replace("tell me about", "").replace("what is", "").strip()
+            medicine = input.message.replace("tell me about", "").strip()
             prompt = f"""
-Provide detailed information about **{med_name}** in markdown:
+User wants info about: {medicine}
 
-## 💊 Medicine: {med_name.title()}
+Respond as:
 
-### What It Does:
-- Primary use.
+## 💊 Medicine: {medicine}
 
-### How It Works:
-- Mechanism.
+### What It Does
+[Explain use of {medicine}]
 
-### Side Effects:
-- List 3 side effects.
+### How It Works
+[Mechanism]
 
-### Precautions:
-- List precautions.
+### Side Effects & Precautions
+[List 2-3 side effects, and warnings]
 
-### Where to Buy:
-[Buy {med_name.title()} on 1mg](https://www.1mg.com/search/all?name={med_name.replace(" ", "%20")})
+### Where to Buy
+- [Buy {medicine} on 1mg](https://www.1mg.com/search/all?name={medicine.replace(' ', '%20')})
 
----
-**Note:** This is general information, not medical advice.
+**Disclaimer**: Consult a healthcare professional.
 """
         else:
-            raise HTTPException(status_code=400, detail="Invalid type")
+            raise HTTPException(status_code=400, detail="Type must be medicine or symptom")
 
         response = client.chat.completions.create(
             model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=800
+            messages=[{"role": "system", "content": base_system},{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1024
         )
 
-        return {"response": response.choices[0].message.content.strip(), "history": user_record["history"]}
+        return {"response": response.choices[0].message.content.strip()}
 
     except Exception as e:
-        return {"detail": f"Internal server error: {str(e)}"}
+        raise HTTPException(status_code=500, detail=str(e))
