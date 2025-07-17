@@ -26,6 +26,12 @@
             padding: 40px; border-radius: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.15);
             width: 95%; max-width: 800px;
             display: flex; flex-direction: column; gap: 20px;
+            <input id="email" placeholder="Enter your email to continue" style="padding:10px; border-radius:10px; width:100%; margin-bottom:10px;">
+
+<div id="historySection" style="background:#f8f8f8; padding:15px; margin-top:20px; border-radius:12px;">
+    <h3>🗂️ Previous History</h3>
+    <ul id="historyList" style="list-style-type:circle; padding-left:20px;"></ul>
+</div>
         }
         h1 {
             text-align: center; font-size: 2.8em; font-weight: 700;
@@ -164,31 +170,52 @@ function submitLogin() {
     document.getElementById('login-modal').style.display = 'none';
 }
 
-async function sendRequest() {
-    if (!checkLogin()) return;
+<script>
 
+const BACKEND_URL = "https://medassist-backend-jp57.onrender.com/ask";
+
+async function sendRequest() {
     const input = document.getElementById('input').value.trim();
+    const email = document.getElementById('email').value.trim();
     const output = document.getElementById('output');
-    if (!input) {
-        output.innerHTML = "<p style='color:red;'>❗ Please enter your query.</p>";
+
+    if (!input || !email) {
+        output.innerHTML = "<p style='color:red;'>❗ Please enter your query and email.</p>";
         return;
     }
 
-    output.innerHTML = "<p>⏳ Processing your request...</p>";
+    output.innerHTML = "<p>⏳ Processing...</p>";
 
     try {
         const res = await fetch(BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: input, type: currentType, email: userEmail, food_history: foodHistory })
+            body: JSON.stringify({ message: input, type: currentType, email: email })
         });
+
         const data = await res.json();
-        output.innerHTML = marked.parse(data.response);
+
+        if (data.response) {
+            output.innerHTML = marked.parse(data.response);
+            updateHistory(data.history);
+        } else {
+            output.innerHTML = `<p style="color:red;">❌ Error: ${data.detail}</p>`;
+        }
     } catch (err) {
         output.innerHTML = `<p style="color:red;">❌ Error fetching data: ${err.message}</p>`;
     }
 }
-</script>
 
+function updateHistory(history) {
+    const historyList = document.getElementById('historyList');
+    historyList.innerHTML = ''; // Clear previous
+
+    history.reverse().slice(0, 5).forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = `[${item.type}] ${item.message}`;
+        historyList.appendChild(li);
+    });
+}
+</script>
 </body>
 </html>
