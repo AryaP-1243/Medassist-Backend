@@ -1,4 +1,4 @@
-const BACKEND_URL = `http://${window.location.hostname}:10000/ask`;
+const BACKEND_URL = `https://medassist-backend-jp57.onrender.com/ask`;
 
 async function sendRequest() {
     const input = document.getElementById("input").value.trim();
