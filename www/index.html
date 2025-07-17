@@ -2,197 +2,395 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>🩺 MedAssist - Your AI Health Partner</title>
+    <title>🩺 MedAssist - Global Health AI</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <style>
-        body {
-            margin: 0; padding: 20px; font-family: 'Poppins', sans-serif;
-            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-            background-size: 400% 400%; animation: gradientBG 15s ease infinite;
-            display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; color: #333;
+        :root {
+            --primary-color-start: #1e3a8a;
+            --primary-color-end: #3b82f6;
+            --medicine-color: #e91e63;
+            --symptom-color: #03a9f4;
+            --background-color: #f8f9fa;
+            --text-color: #343a40;
+            --light-text-color: #6c757d;
+            --border-color: #dee2e6;
+            --white-glass: rgba(255, 255, 255, 0.85);
         }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(-45deg, #6a11cb, #2575fc, #ec008c, #fc6767);
+            background-size: 400% 400%;
+            animation: gradientBG 18s ease infinite;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            color: var(--text-color);
+        }
+
         @keyframes gradientBG {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
+
         .container {
-            background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
-            padding: 40px; border-radius: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.15);
-            width: 95%; max-width: 900px; display: flex; gap: 20px;
+            background: var(--white-glass);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            padding: 40px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+            width: 95%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
         }
-        .left-panel {
-            width: 30%; background: #fff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow-y: auto; max-height: 500px;
-        }
-        .right-panel {
-            flex: 1; display: flex; flex-direction: column; gap: 15px;
-        }
+
         h1 {
-            text-align: center; font-size: 2.8em; font-weight: 700;
-            background: linear-gradient(45deg, #00796b, #48a999); 
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 5px;
+            text-align: center;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #0d47a1, #1976d2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
         }
-        .input-area { display: flex; flex-direction: column; gap: 15px; }
-        textarea {
-            padding: 15px; font-size: 16px; border-radius: 14px; border: 1px solid #ddd; background: #fff;
-            width: 100%; resize: vertical; min-height: 80px; box-sizing: border-box;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+
+        p.subtitle {
+            text-align: center;
+            color: var(--light-text-color);
+            margin: -15px 0 15px;
+            font-size: 1.1em;
         }
+
+        /* Input Fields Styling */
+        input, textarea {
+            padding: 15px;
+            font-size: 16px;
+            font-family: 'Poppins', sans-serif;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color-end);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Type Selection Buttons */
         .type-selection { display: flex; gap: 15px; justify-content: center; }
         .type-button {
-            flex: 1; padding: 12px 20px; font-size: 16px; font-weight: 600;
-            background: #e0e0e0; color: #555; border: none; border-radius: 10px; cursor: pointer;
-            transition: all 0.3s ease; text-align: center;
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            background: #e9ecef;
+            color: var(--light-text-color);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        .type-button.active {
-            background: linear-gradient(90deg, #00796b, #48a999); color: white;
-            box-shadow: 0 4px 10px rgba(0,121,107,0.3);
-        }
+        .type-button:hover { background: #dee2e6; }
+        .type-button.active[data-type="medicine"] { background: var(--medicine-color); color: white; box-shadow: 0 5px 15px rgba(233, 30, 99, 0.4); }
+        .type-button.active[data-type="symptom"] { background: var(--symptom-color); color: white; box-shadow: 0 5px 15px rgba(3, 169, 244, 0.4); }
+
+        /* Main Action Buttons */
         .button-group { display: flex; gap: 20px; margin-top: 10px; }
-        button {
-            flex: 1; padding: 15px; font-size: 17px; font-weight: 600;
-            background: linear-gradient(90deg, #00796b, #48a999); color: white; border: none; border-radius: 14px;
-            cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px;
+        .action-button {
+            flex: 1;
+            padding: 15px;
+            font-size: 17px;
+            font-weight: 600;
+            background: linear-gradient(90deg, var(--primary-color-start), var(--primary-color-end));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .action-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(30, 58, 138, 0.3);
+        }
+        
+        /* Login Section Buttons */
+        #loginSection button {
+            padding: 12px; font-size: 16px; font-weight: 600;
+            background: var(--primary-color-end); color: white; border: none;
+            border-radius: 12px; cursor: pointer; transition: background 0.3s;
+        }
+        #loginSection button:hover { background: var(--primary-color-start); }
+        #loginSection { display: flex; flex-direction: column; gap: 10px; }
+
+
         #output {
-            background: #fff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.08);
-            line-height: 1.7; color: #333; max-height: 400px; overflow-y: auto;
+            margin-top: 20px;
+            background: var(--background-color);
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            line-height: 1.8;
+            color: var(--text-color);
+            max-height: 400px;
+            overflow-y: auto;
         }
-        .history-item { margin-bottom: 10px; font-size: 0.9em; color: #555; }
-        .user-info { margin-top: 20px; font-size: 0.85em; color: #333; border-top: 1px solid #eee; padding-top: 10px; }
-        #login-modal {
-            display: none; position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
-            background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            z-index: 9999; width: 90%; max-width: 400px;
+        #output > *:first-child { margin-top: 0; }
+        #output > *:last-child { margin-bottom: 0; }
+
+
+        #sidebar {
+            position: fixed;
+            left: 20px;
+            top: 20px;
+            background: var(--white-glass);
+            backdrop-filter: blur(25px);
+            padding: 20px;
+            border-radius: 16px;
+            width: 240px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        #login-modal input, #login-modal textarea {
-            width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ddd;
+        #sidebar h3 { margin-top: 0; }
+        #sidebar p { word-wrap: break-word; }
+
+        footer {
+            margin-top: 30px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
         }
-        #login-modal button { background: #00796b; color: white; border: none; padding: 10px 20px; border-radius: 8px; width: 100%; }
-        footer { margin-top: 40px; text-align: center; color: #fff; font-size: 0.88em; opacity: 0.9; }
-        @media(max-width: 700px) {
-            .container { flex-direction: column; }
-            .left-panel { width: 100%; }
+
+        @media(max-width: 1100px) {
+            #sidebar {
+                position: static;
+                width: 100%;
+                max-width: 800px; /* Match container width */
+                margin-bottom: 20px;
+                max-height: 250px;
+            }
+            body { flex-direction: column; }
+        }
+
+        @media(max-width: 600px) {
+            .type-selection, .button-group, #loginSection { flex-direction: column; gap: 10px; }
+            .container { padding: 25px; }
+            h1 { font-size: 2.4em; }
         }
     </style>
 </head>
 <body>
 
+<div id="sidebar">
+    <h3><i class="fa-solid fa-clock-rotate-left"></i> History</h3>
+    <div id="history">Your past queries will appear here.</div>
+    <hr>
+    <strong><i class="fa-solid fa-user"></i> User:</strong> <span id="userDisplay">Not logged in</span>
+</div>
+
 <div class="container">
-    <div class="left-panel">
-        <h3>History</h3>
-        <div id="history"></div>
-        <div class="user-info">
-            <strong>User:</strong> <span id="user-details">Not Logged In</span>
-        </div>
+    <h1><i class="fa-solid fa-heart-pulse"></i> MedAssist</h1>
+    <p class="subtitle">Your AI Health Guide for Symptoms & Medicines</p>
+
+    <div id="loginSection">
+        <input id="emailPhone" type="text" placeholder="Enter email or phone number">
+        <input id="otp" type="text" placeholder="Enter OTP received">
+        <textarea id="food" placeholder="Briefly describe what you ate in the last 2-3 days..."></textarea>
+        <button onclick="sendOTP()"><i class="fa-solid fa-paper-plane"></i> Send OTP</button>
+        <button onclick="verifyOTP()"><i class="fa-solid fa-check-circle"></i> Verify & Login</button>
     </div>
 
-    <div class="right-panel">
-        <h1>MedAssist <i class="fa-solid fa-notes-medical"></i></h1>
+    <div id="healthScore" style="font-size:1.5em; text-align:center; font-weight:600; margin-top:15px;"></div>
+
+    <div id="mainSection" style="display:none;">
         <div class="input-area">
-            <textarea id="input" placeholder="e.g., Tell me about Aspirin or I have a sore throat"></textarea>
+            <textarea id="input" placeholder="e.g., Tell me about Aspirin... or I have a persistent headache and nausea..."></textarea>
             <div class="type-selection">
-                <button id="medicineBtn" class="type-button active" onclick="setType('medicine')"><i class="fa-solid fa-pills"></i> Medicine</button>
-                <button id="symptomBtn" class="type-button" onclick="setType('symptom')"><i class="fa-solid fa-stethoscope"></i> Symptom</button>
+                <button class="type-button active" data-type="medicine" onclick="setType('medicine')"><i class="fa-solid fa-pills"></i> Medicine</button>
+                <button class="type-button" data-type="symptom" onclick="setType('symptom')"><i class="fa-solid fa-stethoscope"></i> Symptom</button>
             </div>
         </div>
+
         <div class="button-group">
-            <button onclick="sendRequest()"><i class="fa-solid fa-paper-plane"></i> Get Insights</button>
-            <button onclick="startVoiceInput()"><i class="fa-solid fa-microphone"></i> Voice Input</button>
+            <button class="action-button" onclick="ask()"><i class="fa-solid fa-lightbulb"></i> Get Insights</button>
+            <button class="action-button" onclick="startVoiceInput()"><i class="fa-solid fa-microphone"></i> Voice Input</button>
         </div>
-        <div id="output">I'm ready to help! Your health insights will appear here. 📝</div>
+
+        <div id="output">Your insights will appear here! 📝</div>
     </div>
 </div>
 
 <footer>
-    © 2025 MedAssist | Built with ❤️ for global healthcare.
+    &copy; 2025 MedAssist | Built with ❤️ for global healthcare access.
 </footer>
 
-<div id="login-modal">
-    <h3>Login to Continue</h3>
-    <input id="email" placeholder="Email or Phone">
-    <textarea id="food" placeholder="What did you eat in the last 3-4 days?"></textarea>
-    <button onclick="submitLogin()">Submit</button>
-</div>
-
 <script>
-const BACKEND_URL = "https://medassist-backend-jp57.onrender.com/ask";
+// Your Javascript remains the same. It is already well-structured.
+const BACKEND_URL = "https://medassist-backend-jp57.onrender.com";
 let currentType = 'medicine';
-let userContact = '';
-let foodHistory = '';
-let historyList = [];
+let emailOrPhone = '';
+
+function confettiBlast() {
+    confetti({particleCount: 150, spread: 90, origin: { y: 0.6 }});
+}
 
 function setType(type) {
     currentType = type;
-    document.getElementById('medicineBtn').classList.remove('active');
-    document.getElementById('symptomBtn').classList.remove('active');
-    document.getElementById(type + 'Btn').classList.add('active');
+    document.querySelectorAll(".type-button").forEach(btn => btn.classList.remove("active"));
+    document.querySelector(`.type-button[data-type='${type}']`).classList.add("active");
+}
+
+function sendOTP() {
+    const val = document.getElementById("emailPhone").value.trim();
+    if (!val) return alert("Please enter your email or phone number!");
+
+    emailOrPhone = val;
+    const output = document.getElementById("output");
+    output.innerText = "Sending OTP...";
+    fetch(`${BACKEND_URL}/send-otp`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(val.includes("@") ? {email: val} : {phone: val})
+    }).then(r => r.json()).then(data => {
+        alert("OTP Sent! Please check your email or phone.");
+        output.innerText = "Awaiting OTP verification...";
+    }).catch(err => {
+        alert("Error sending OTP. Please try again.");
+        console.error(err);
+    });
+}
+
+function verifyOTP() {
+    const otp = document.getElementById("otp").value.trim();
+    const food = document.getElementById("food").value.trim();
+    if (!otp || !food) return alert("Please enter the OTP and your food history!");
+
+    fetch(`${BACKEND_URL}/verify-otp`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            otp: otp, food_history: food,
+            ...(emailOrPhone.includes("@") ? {email: emailOrPhone} : {phone: emailOrPhone})
+        })
+    }).then(r => {
+        if (!r.ok) throw new Error('Verification failed!');
+        return r.json();
+    }).then(data => {
+        document.getElementById("userDisplay").innerText = emailOrPhone;
+        const healthScoreEl = document.getElementById("healthScore");
+        healthScoreEl.innerText = `Your Health Score: ${data.health_score}/100`;
+        healthScoreEl.style.color = data.health_score > 75 ? '#28a745' : (data.health_score > 50 ? '#ffc107' : '#dc3545');
+        
+        if (data.health_score > 80) confettiBlast();
+
+        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("mainSection").style.display = "flex";
+        document.getElementById("mainSection").style.flexDirection = "column";
+        document.getElementById("mainSection").style.gap = "20px";
+        
+        // Initial greeting
+        document.getElementById("output").innerHTML = marked.parse(`Welcome, **${emailOrPhone}**! I'm ready to help. Ask me about a medicine or a symptom.`);
+
+    }).catch(err => {
+        alert("Invalid OTP or error during verification. Please try again.");
+        console.error(err);
+    });
+}
+
+function ask() {
+    const input = document.getElementById("input").value.trim();
+    if (!input) return alert("Please enter your query in the text box!");
+
+    const outputDiv = document.getElementById("output");
+    outputDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating insights...';
+
+    fetch(`${BACKEND_URL}/ask`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({message: input, type: currentType, email_or_phone: emailOrPhone})
+    }).then(r => r.json()).then(data => {
+        outputDiv.innerHTML = marked.parse(data.response);
+        updateHistory(data.history);
+    }).catch(err => {
+        outputDiv.innerText = "Sorry, an error occurred. Please try again.";
+        console.error(err);
+    });
+}
+
+function updateHistory(history) {
+    const sidebar = document.getElementById("history");
+    sidebar.innerHTML = "";
+    if (!history || history.length === 0) {
+        sidebar.innerHTML = "Your past queries will appear here.";
+        return;
+    }
+    history.slice().reverse().slice(0, 5).forEach(item => { // Show 5 most recent
+        const p = document.createElement('p');
+        p.innerHTML = `${item.type === "medicine" ? "💊" : "🩺"} ${item.message}`;
+        p.style.cursor = 'pointer';
+        p.title = `Click to re-run query for: "${item.message}"`;
+        p.onclick = () => {
+            document.getElementById('input').value = item.message;
+            setType(item.type);
+            ask();
+        };
+        sidebar.appendChild(p);
+    });
 }
 
 function startVoiceInput() {
+    if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+        alert("Sorry, your browser doesn't support Voice Input. Please use Chrome or Safari.");
+        return;
+    }
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = "en-IN";
     recognition.interimResults = false;
     recognition.start();
-    recognition.onresult = (event) => {
-        document.getElementById("input").value = event.results[0][0].transcript;
-        sendRequest();
+    
+    document.getElementById("output").innerHTML = "🎙️ Listening... Please speak your query.";
+
+    recognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        document.getElementById("input").value = transcript;
+        ask();
     };
-}
-
-function checkLogin() {
-    if (!userContact) {
-        document.getElementById('login-modal').style.display = 'block';
-        return false;
-    }
-    return true;
-}
-
-function submitLogin() {
-    userContact = document.getElementById('email').value.trim();
-    foodHistory = document.getElementById('food').value.trim();
-    document.getElementById('login-modal').style.display = 'none';
-    document.getElementById('user-details').innerText = userContact;
-}
-
-function updateHistory(input) {
-    historyList.unshift(input);
-    document.getElementById('history').innerHTML = historyList.map(item => `<div class="history-item">• ${item}</div>`).join('');
-}
-
-async function sendRequest() {
-    if (!checkLogin()) return;
-    const input = document.getElementById('input').value.trim();
-    const output = document.getElementById('output');
-    if (!input) {
-        output.innerHTML = "<p style='color:red;'>❗ Please enter your query.</p>";
-        return;
-    }
-    output.innerHTML = "<p>⏳ Processing...</p>";
-    updateHistory(input);
-
-    try {
-        const res = await fetch(BACKEND_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: input, type: currentType, email: userContact, phone: userContact, food_history: foodHistory })
-        });
-        const data = await res.json();
-        output.innerHTML = marked.parse(data.response);
-
-        if (data.response.includes("🎉")) {
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        }
-    } catch (err) {
-        output.innerHTML = `<p style="color:red;">❌ Error: ${err.message}</p>`;
-    }
+    recognition.onerror = (e) => {
+        alert("Voice input error: " + e.error + ". Please try again or type your query.");
+        document.getElementById("output").innerText = "I'm ready to help! 📝";
+    };
+    recognition.onspeechend = () => {
+        recognition.stop();
+    };
 }
 </script>
 
