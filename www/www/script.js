@@ -1,4 +1,4 @@
-const BACKEND_URL = "https://medassist.loca.lt/ask";
+const BACKEND_URL = "https://medassist-backend-jp57.onrender.com/ask";
 document.getElementById("askBtn").onclick = async () => {
     const message = document.getElementById("message").value;
     if (!message) return alert("Please enter a message");

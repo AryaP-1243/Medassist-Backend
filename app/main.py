@@ -1,189 +1,170 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import firebase_admin
+from firebase_admin import credentials, auth, firestore
 from groq import Groq
-import os, random, time
-import json
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import os
+from datetime import datetime
 
+# Init app
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
-# Load API keys
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-if not GROQ_API_KEY or not SENDGRID_API_KEY:
-    raise Exception("Missing API Keys in Environment Variables")
+# Firebase Setup
+cred = credentials.Certificate("serviceAccountKey.json")  # <- Add your Firebase Service Account JSON here
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-client = Groq(api_key=GROQ_API_KEY)
+# Groq setup
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Simple storage for OTPs and user data
-otps = {}
-users_file = "users_data.json"
-
-if not os.path.exists(users_file):
-    with open(users_file, "w") as f:
-        json.dump({}, f)
-
-def load_users():
-    with open(users_file, "r") as f:
-        return json.load(f)
-
-def save_users(data):
-    with open(users_file, "w") as f:
-        json.dump(data, f, indent=4)
-
-class OTPRequest(BaseModel):
-    email: str
-
-class OTPVerify(BaseModel):
-    email: str
-    otp: str
-
+# Request models
 class AskRequest(BaseModel):
     message: str
-    type: str  # "medicine" or "symptom"
-    token: str  # Email or Phone
+    type: str
+    uid: str
 
-@app.post("/send-email-otp")
-def send_email_otp(req: OTPRequest):
-    otp = str(random.randint(100000, 999999))
-    otps[req.email] = {"otp": otp, "timestamp": time.time()}
-    
-    message = Mail(
-        from_email='your_email@domain.com',  # Set your verified sender
-        to_emails=req.email,
-        subject='Your MedAssist OTP',
-        plain_text_content=f'Your OTP is {otp}. It is valid for 5 minutes.'
-    )
+class OTPRequest(BaseModel):
+    id_token: str
+    food_history: str
+
+# Health Score Calculation (Simple logic for now)
+def calculate_health_score(food):
+    unhealthy = ['mutton', 'pizza', 'burger', 'oily', 'fried', 'alcohol']
+    healthy = ['salad', 'fruits', 'vegetables', 'protein', 'grilled']
+    score = 80
+    for word in unhealthy:
+        if word in food.lower():
+            score -= 10
+    for word in healthy:
+        if word in food.lower():
+            score += 5
+    return max(0, min(100, score))
+
+# Routes
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.post("/send-otp")
+def send_otp():
+    return {"msg": "Use Firebase Authentication Client SDK for phone/email OTP."}
+
+@app.post("/verify-otp")
+def verify_otp(data: OTPRequest):
     try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
-        return {"message": "OTP sent to email."}
+        decoded = auth.verify_id_token(data.id_token)
+        uid = decoded['uid']
+        email = decoded.get('email', '')
+        phone = decoded.get('phone_number', '')
+
+        user_ref = db.collection('users').document(uid)
+        user_ref.set({
+            'email': email,
+            'phone': phone,
+            'food_history': data.food_history,
+            'health_score': calculate_health_score(data.food_history),
+            'updated_at': datetime.utcnow()
+        })
+
+        return {"uid": uid, "health_score": calculate_health_score(data.food_history)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/verify-email-otp")
-def verify_email_otp(req: OTPVerify):
-    record = otps.get(req.email)
-    if not record or record["otp"] != req.otp or time.time() - record["timestamp"] > 300:
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
-
-    # Save user if not exists
-    users = load_users()
-    if req.email not in users:
-        users[req.email] = {"history": [], "food_history": "", "health_score": random.randint(50, 90)}
-    save_users(users)
-
-    return {"message": "OTP verified", "token": req.email, "health_score": users[req.email]["health_score"]}
-
-@app.post("/health-score")
-def health_score(phone_data: dict):
-    phone = phone_data.get("phone")
-    users = load_users()
-    if phone not in users:
-        users[phone] = {"history": [], "food_history": "", "health_score": random.randint(50, 90)}
-    save_users(users)
-    return {"health_score": users[phone]["health_score"]}
+        print(e)
+        raise HTTPException(status_code=400, detail="Invalid Token or Verification Failed")
 
 @app.post("/ask")
-def ask(req: AskRequest):
-    users = load_users()
-    user = users.get(req.token)
-    if not user:
+def ask(request: AskRequest):
+    user_ref = db.collection('users').document(request.uid)
+    user_data = user_ref.get().to_dict() if user_ref.get().exists else None
+
+    if not user_data:
         raise HTTPException(status_code=404, detail="User not found.")
 
+    system_message = "You are MedAssist, a world-class AI doctor. Give detailed yet human-like answers in markdown. Suggest correct medicines with relevant descriptions and always provide buy links from 1mg.com. Do not use user input directly in links."
+
     prompt = ""
-    if req.type == "symptom":
+
+    if request.type == "symptom":
         prompt = f"""
-You are a world-class AI health assistant named MedAssist.
+User: {request.message}
 
-User says: "{req.message}"
+Give a medical assessment for this symptom.
 
-Give a professional, humanized doctor-like reply in **Markdown**:
+Respond in markdown:
 
-## 🩺 Symptom Analysis
+## 🩺 Symptom Assessment
 
 ### Possible Causes:
-List top 3 causes for "{req.message}" in natural language.
+- List 3 possible reasons for the symptom.
 
 ### Home Remedies:
-Suggest 2-3 effective home remedies.
+- Suggest 2 home care tips.
 
-### Recommended Medicines:
-Suggest 2-3 OTC medicines if applicable. Provide their purpose.
+### Medicines:
+- List 2-3 medicines with short descriptions and buy links from 1mg.com in markdown format. Avoid hardcoding input.
 
-### 🛒 Where to Buy:
-Provide relevant **1mg links only for the medicine names, not the symptom**.
-Format: 
-[Buy {medicine_name} on 1mg](https://www.1mg.com/search/all?name={medicine_name})
-
-### Health Score Impact:
-Current food history: {user.get('food_history', 'N/A')}
-Explain if this food could affect the symptom.
+### Health Score:
+- User's recent food: {user_data.get('food_history', 'No food data')}
+- Possible link between food and symptom? Explain briefly.
 
 ---
 
-**Disclaimer:** This is general information. Consult a healthcare professional.
+Respond like a friendly doctor.
 """
-    elif req.type == "medicine":
-        med_name = req.message.strip().replace("Tell me about", "").strip()
+
+    elif request.type == "medicine":
         prompt = f"""
-You are MedAssist, a professional AI pharmacist.
+User asked about: {request.message}
 
-Give a detailed answer about **{med_name}** in **Markdown**:
+Give a detailed medicine explanation in markdown.
 
-## 💊 Medicine: {med_name}
+## 💊 Medicine: {request.message}
 
 ### What It Does:
-Explain usage of {med_name}.
+- Explain purpose of this medicine.
 
 ### How It Works:
-Brief mechanism of action.
+- Simple mechanism.
 
-### Side Effects:
-List 3 common side effects.
+### Side Effects & Precautions:
+- List 3 common side effects.
+- List 2 warnings.
 
-### 🛒 Where to Buy:
-[Buy {med_name} on 1mg](https://www.1mg.com/search/all?name={med_name})
+### Where to Buy:
+- [Buy on 1mg](https://www.1mg.com/search/all?name={request.message.replace(" ", "%20")})
 
 ---
 
-**Disclaimer:** Always consult a doctor before taking medicines.
+Respond like an expert medical professional, but make it friendly and human.
 """
     else:
-        raise HTTPException(status_code=400, detail="Invalid type")
+        raise HTTPException(status_code=400, detail="Type must be 'medicine' or 'symptom'.")
 
-    try:
-        response = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": "You are MedAssist, respond like a caring doctor in Markdown."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=1024
-        )
-        reply = response.choices[0].message.content.strip()
+    response = client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[{"role": "system", "content": system_message},
+                  {"role": "user", "content": prompt}],
+        temperature=0.5,
+        max_tokens=1024
+    )
 
-        # Save history
-        user["history"].append({
-            "message": req.message,
-            "type": req.type,
-            "timestamp": time.time()
-        })
-        users[req.token] = user
-        save_users(users)
+    reply = response.choices[0].message.content.strip()
 
-        return {"response": reply, "history": user["history"]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal server error.")
+    # Save to user history
+    history_ref = user_ref.collection('history')
+    history_ref.add({
+        "message": request.message,
+        "type": request.type,
+        "timestamp": datetime.utcnow()
+    })
 
-@app.get("/")
-def root():
-    return {"message": "MedAssist Backend Active"}
+    # Retrieve history (last 5 entries)
+    history_docs = history_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
+    history = [{"message": doc.to_dict()["message"], "type": doc.to_dict()["type"]} for doc in history_docs]
+
+    return {"response": reply, "history": history}
