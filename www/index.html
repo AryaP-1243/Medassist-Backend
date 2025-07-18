@@ -14,7 +14,7 @@
   <style>
     body { margin:0; padding:20px; font-family: 'Poppins', sans-serif; background: linear-gradient(-45deg, #6a11cb, #2575fc, #ec008c, #fc6767); background-size:400% 400%; animation:gradientBG 18s ease infinite; display:flex; flex-direction:column; align-items:center; min-height:100vh; box-sizing:border-box; color:#343a40;}
     @keyframes gradientBG{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
-    .container{background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);padding:40px;border-radius:24px;box-shadow:0 16px 40px rgba(0,0,0,0.15);width:95%;max-width:800px;display:flex;flex-direction:column;gap:20px;}
+    .container{background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);padding:40px;border-radius:24px;box-shadow:0 16px 40px rgba(0,0,0,0.15);width:95%;max-width:800px;display:flex;flex-direction:column;gap:20px; margin-left:80px;}
     h1{ text-align:center;font-size:2.8em;font-weight:700;background:linear-gradient(45deg,#0d47a1,#1976d2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
     .type-selection{display:flex;gap:15px;justify-content:center;}
     .type-button{flex:1;padding:12px 20px;font-size:16px;font-weight:600;background:#e9ecef;color:#555;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s ease;}
@@ -40,11 +40,8 @@
 <div class="container">
   <h1><i class="fa-solid fa-heart-pulse"></i> MedAssist</h1>
 
-  <input id="emailOrPhone" placeholder="Enter Phone (+91XXXXXXXXXX)">
-  <button onclick="startLogin()">Login / Get OTP</button>
-  
-  <input id="otpBox" style="display:none;" placeholder="Enter OTP">
-  <button id="verifyBtn" style="display:none;" onclick="verifyOTP()">Verify OTP</button>
+  <input id="emailInput" placeholder="Enter your Email">
+  <button onclick="sendMagicLink()">Login via Magic Link</button>
 
   <div id="healthScore"></div>
 
@@ -78,6 +75,7 @@ const firebaseConfig = {
     appId: "1:456589111482:web:e951fe2ef7bb84d17a1283"
 };
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 
 function confettiBlast() {
     confetti({particleCount: 150, spread: 90, origin: { y: 0.6 }});
@@ -89,43 +87,50 @@ function setType(t) {
     document.querySelector(`.type-button[data-type='${t}']`).classList.add('active');
 }
 
-function startLogin() {
-    const val = document.getElementById("emailOrPhone").value.trim();
-    if (!val) return alert("Please enter your Phone Number with country code (e.g., +91XXXXXXXXXX)");
+function sendMagicLink() {
+    const email = document.getElementById("emailInput").value.trim();
+    if (!email) return alert("Enter your email.");
 
-    const appVerifier = new firebase.auth.RecaptchaVerifier('verifyBtn', {size: 'invisible'});
+    const actionCodeSettings = {
+        url: window.location.href,
+        handleCodeInApp: true
+    };
 
-    firebase.auth().signInWithPhoneNumber(val, appVerifier).then(confirmationResult => {
-        window.confirmationResult = confirmationResult;
-        document.getElementById("otpBox").style.display = 'block';
-        document.getElementById("verifyBtn").style.display = 'block';
+    auth.sendSignInLinkToEmail(email, actionCodeSettings).then(() => {
+        window.localStorage.setItem('emailForSignIn', email);
+        alert("Magic login link sent! Please check your email.");
     }).catch(e => alert(e.message));
 }
 
-function verifyOTP() {
-    const otp = document.getElementById("otpBox").value.trim();
-    if (!otp) return alert("Please enter the OTP.");
-
-    window.confirmationResult.confirm(otp).then(result => {
-        result.user.getIdToken().then(idToken => {
+window.onload = function() {
+    if (auth.isSignInWithEmailLink(window.location.href)) {
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+            email = prompt("Enter your email to complete login:");
+        }
+        auth.signInWithEmailLink(email, window.location.href).then(result => {
             userUID = result.user.uid;
-            document.getElementById("userDisplay").innerText = result.user.phoneNumber;
+            document.getElementById("userDisplay").innerText = email;
 
             const food = prompt("What did you eat in the last 2-3 days? (For Health Score)");
-            if (!food) return alert("Food input is required for health tracking.");
 
             fetch(`${BACKEND_URL}/verify-otp`, {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ id_token: idToken, food_history: food })
+                body: JSON.stringify({ id_token: result.user.accessToken, food_history: food })
             })
             .then(r => r.json())
             .then(data => {
                 document.getElementById("healthScore").innerHTML = `<b>Your Health Score: ${data.health_score}/100</b>`;
-                if (data.health_score >= 80) confettiBlast();
+                if (data.health_score >= 80) {
+                    confettiBlast();
+                } else {
+                    alert("⚠️ Your score is low! Please reduce junk food and eat more healthy items like fruits, vegetables, and grilled options.");
+                }
             });
-        });
-    }).catch(e => alert("Incorrect OTP. Try again."));
+
+        }).catch(e => alert(e.message));
+    }
 }
 
 function ask() {
