@@ -6,6 +6,7 @@ from firebase_admin import credentials, auth, firestore
 from groq import Groq
 import os
 from datetime import datetime
+import json
 
 # Init app
 app = FastAPI()
@@ -16,7 +17,8 @@ app.add_middleware(
 )
 
 # Firebase Setup
-cred = credentials.Certificate("serviceAccountKey.json")  # <- Add your Firebase Service Account JSON here
+firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
+cred = credentials.Certificate(json.loads(firebase_creds))
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
