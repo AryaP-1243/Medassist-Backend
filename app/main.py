@@ -17,8 +17,10 @@ app.add_middleware(
 )
 
 # Firebase Setup
-firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
-cred = credentials.Certificate(json.loads(firebase_creds))
+creds_dict = json.loads(firebase_creds)
+creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+cred = credentials.Certificate(creds_dict)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
