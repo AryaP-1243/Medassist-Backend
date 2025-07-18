@@ -4,19 +4,22 @@ from pydantic import BaseModel
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 from groq import Groq
-import os
+import os, json
 from datetime import datetime
-import json
 
 # Init app
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
 )
 
 # Firebase Setup
+firebase_creds = os.getenv("FIREBASE_CREDENTIALS_JSON")
+if not firebase_creds:
+    raise ValueError("FIREBASE_CREDENTIALS_JSON not found in environment variables.")
+
 creds_dict = json.loads(firebase_creds)
 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
@@ -27,17 +30,17 @@ db = firestore.client()
 # Groq setup
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Request models
+# Models
 class AskRequest(BaseModel):
     message: str
-    type: str
+    type: str  # "medicine" or "symptom"
     uid: str
 
 class OTPRequest(BaseModel):
     id_token: str
     food_history: str
 
-# Health Score Calculation (Simple logic for now)
+# Health score function
 def calculate_health_score(food):
     unhealthy = ['mutton', 'pizza', 'burger', 'oily', 'fried', 'alcohol']
     healthy = ['salad', 'fruits', 'vegetables', 'protein', 'grilled']
@@ -57,7 +60,7 @@ def health():
 
 @app.post("/send-otp")
 def send_otp():
-    return {"msg": "Use Firebase Authentication Client SDK for phone/email OTP."}
+    return {"msg": "Use Firebase Authentication Client SDK for OTP."}
 
 @app.post("/verify-otp")
 def verify_otp(data: OTPRequest):
@@ -84,67 +87,55 @@ def verify_otp(data: OTPRequest):
 @app.post("/ask")
 def ask(request: AskRequest):
     user_ref = db.collection('users').document(request.uid)
-    user_data = user_ref.get().to_dict() if user_ref.get().exists else None
+    user_doc = user_ref.get()
 
-    if not user_data:
+    if not user_doc.exists:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    system_message = "You are MedAssist, a world-class AI doctor. Give detailed yet human-like answers in markdown. Suggest correct medicines with relevant descriptions and always provide buy links from 1mg.com. Do not use user input directly in links."
+    user_data = user_doc.to_dict()
 
-    prompt = ""
+    system_message = "You are MedAssist, a world-class AI doctor. Give detailed yet friendly replies in markdown. Always suggest correct medicines with 1mg.com links."
 
     if request.type == "symptom":
         prompt = f"""
 User: {request.message}
 
-Give a medical assessment for this symptom.
-
-Respond in markdown:
-
 ## 🩺 Symptom Assessment
 
 ### Possible Causes:
-- List 3 possible reasons for the symptom.
+List 3 likely reasons.
 
 ### Home Remedies:
-- Suggest 2 home care tips.
+Suggest 2 remedies.
 
 ### Medicines:
-- List 2-3 medicines with short descriptions and buy links from 1mg.com in markdown format. Avoid hardcoding input.
+List 2-3 medicines with 1mg links.
 
-### Health Score:
-- User's recent food: {user_data.get('food_history', 'No food data')}
-- Possible link between food and symptom? Explain briefly.
-
----
-
-Respond like a friendly doctor.
+### Health Score Link:
+User's food: {user_data.get('food_history', 'No data')}
+Any link between food and symptom? Answer briefly.
 """
-
     elif request.type == "medicine":
         prompt = f"""
 User asked about: {request.message}
 
-Give a detailed medicine explanation in markdown.
-
 ## 💊 Medicine: {request.message}
 
 ### What It Does:
-- Explain purpose of this medicine.
+Purpose.
 
 ### How It Works:
-- Simple mechanism.
+Mechanism.
 
 ### Side Effects & Precautions:
-- List 3 common side effects.
-- List 2 warnings.
+3 side effects.
+2 warnings.
 
 ### Where to Buy:
-- [Buy on 1mg](https://www.1mg.com/search/all?name={request.message.replace(" ", "%20")})
+[Buy on 1mg](https://www.1mg.com/search/all?name={request.message.replace(" ", "%20")})
 
 ---
-
-Respond like an expert medical professional, but make it friendly and human.
+Respond like an expert doctor but friendly.
 """
     else:
         raise HTTPException(status_code=400, detail="Type must be 'medicine' or 'symptom'.")
@@ -159,7 +150,7 @@ Respond like an expert medical professional, but make it friendly and human.
 
     reply = response.choices[0].message.content.strip()
 
-    # Save to user history
+    # Save history
     history_ref = user_ref.collection('history')
     history_ref.add({
         "message": request.message,
@@ -167,7 +158,7 @@ Respond like an expert medical professional, but make it friendly and human.
         "timestamp": datetime.utcnow()
     })
 
-    # Retrieve history (last 5 entries)
+    # Get last 5 history
     history_docs = history_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
     history = [{"message": doc.to_dict()["message"], "type": doc.to_dict()["type"]} for doc in history_docs]
 
