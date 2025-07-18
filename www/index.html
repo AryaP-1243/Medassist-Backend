@@ -98,7 +98,7 @@ function sendMagicLink() {
 
     auth.sendSignInLinkToEmail(email, actionCodeSettings).then(() => {
         window.localStorage.setItem('emailForSignIn', email);
-        alert("Magic login link sent! Please check your email.");
+        alert("✅ Magic login link sent! Please check your email.");
     }).catch(e => alert(e.message));
 }
 
@@ -113,20 +113,23 @@ window.onload = function() {
             document.getElementById("userDisplay").innerText = email;
 
             const food = prompt("What did you eat in the last 2-3 days? (For Health Score)");
+            if (!food) return alert("Food input is required.");
 
-            fetch(`${BACKEND_URL}/verify-otp`, {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ id_token: result.user.accessToken, food_history: food })
-            })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById("healthScore").innerHTML = `<b>Your Health Score: ${data.health_score}/100</b>`;
-                if (data.health_score >= 80) {
-                    confettiBlast();
-                } else {
-                    alert("⚠️ Your score is low! Please reduce junk food and eat more healthy items like fruits, vegetables, and grilled options.");
-                }
+            result.user.getIdToken().then(idToken => {
+                fetch(`${BACKEND_URL}/verify-otp`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ id_token: idToken, food_history: food })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById("healthScore").innerHTML = `<b>Your Health Score: ${data.health_score}/100</b>`;
+                    if (data.health_score >= 80) {
+                        confettiBlast();
+                    } else {
+                        alert("⚠️ Your score is low! Reduce junk food and eat more healthy items like fruits, vegetables, and grilled options.");
+                    }
+                });
             });
 
         }).catch(e => alert(e.message));
