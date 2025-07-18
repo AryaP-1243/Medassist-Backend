@@ -12,7 +12,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <style>
-    /* Keep your previous UI as is (this is same as before, retained your styles) */
     body { margin:0; padding:20px; font-family: 'Poppins', sans-serif; background: linear-gradient(-45deg, #6a11cb, #2575fc, #ec008c, #fc6767); background-size:400% 400%; animation:gradientBG 18s ease infinite; display:flex; flex-direction:column; align-items:center; min-height:100vh; box-sizing:border-box; color:#343a40;}
     @keyframes gradientBG{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
     .container{background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);padding:40px;border-radius:24px;box-shadow:0 16px 40px rgba(0,0,0,0.15);width:95%;max-width:800px;display:flex;flex-direction:column;gap:20px;}
@@ -40,8 +39,10 @@
 
 <div class="container">
   <h1><i class="fa-solid fa-heart-pulse"></i> MedAssist</h1>
-  <input id="emailOrPhone" placeholder="Enter Email or Phone (+91XXXXXXXXXX)">
+
+  <input id="emailOrPhone" placeholder="Enter Phone (+91XXXXXXXXXX)">
   <button onclick="startLogin()">Login / Get OTP</button>
+  
   <input id="otpBox" style="display:none;" placeholder="Enter OTP">
   <button id="verifyBtn" style="display:none;" onclick="verifyOTP()">Verify OTP</button>
 
@@ -63,9 +64,10 @@
 <footer>&copy; 2025 MedAssist | Built with ❤️</footer>
 
 <script>
+// Backend URL
 const BACKEND_URL = "https://medassist-backend-jp57.onrender.com";
 let currentType = 'medicine';
-let token = '';
+let userUID = '';
 
 const firebaseConfig = {
     apiKey: "AIzaSyADVw6wELYIyCaG__LkszEbRkSwVnsjv8o",
@@ -89,62 +91,55 @@ function setType(t) {
 
 function startLogin() {
     const val = document.getElementById("emailOrPhone").value.trim();
-    if (val.includes("@")) {
-        fetch(`${BACKEND_URL}/send-email-otp`, {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({email: val})
-        }).then(r => r.json()).then(() => {
-            alert("Email OTP sent!");
-            document.getElementById("otpBox").style.display = 'block';
-            document.getElementById("verifyBtn").style.display = 'block';
-        });
-    } else {
-        const appVerifier = new firebase.auth.RecaptchaVerifier('verifyBtn', {size: 'invisible'});
-        firebase.auth().signInWithPhoneNumber(val, appVerifier).then(confirmationResult => {
-            window.confirmationResult = confirmationResult;
-            document.getElementById("otpBox").style.display = 'block';
-            document.getElementById("verifyBtn").style.display = 'block';
-        }).catch(e => alert(e.message));
-    }
+    if (!val) return alert("Please enter your Phone Number with country code (e.g., +91XXXXXXXXXX)");
+
+    const appVerifier = new firebase.auth.RecaptchaVerifier('verifyBtn', {size: 'invisible'});
+
+    firebase.auth().signInWithPhoneNumber(val, appVerifier).then(confirmationResult => {
+        window.confirmationResult = confirmationResult;
+        document.getElementById("otpBox").style.display = 'block';
+        document.getElementById("verifyBtn").style.display = 'block';
+    }).catch(e => alert(e.message));
 }
 
 function verifyOTP() {
-    const val = document.getElementById("emailOrPhone").value.trim();
     const otp = document.getElementById("otpBox").value.trim();
-    if (val.includes("@")) {
-        fetch(`${BACKEND_URL}/verify-email-otp`, {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({email: val, otp: otp})
-        }).then(r => r.json()).then(data => {
-            token = data.token;
-            document.getElementById("userDisplay").innerText = val;
-            showScore(data.health_score);
-        });
-    } else {
-        window.confirmationResult.confirm(otp).then(() => {
-            token = val; // Use phone as token in Firebase phone case
-            document.getElementById("userDisplay").innerText = val;
-            fetch(`${BACKEND_URL}/health-score`, {
-                method: "POST", headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({phone: val})
-            }).then(r => r.json()).then(data => showScore(data.health_score));
-        }).catch(e => alert(e.message));
-    }
-}
+    if (!otp) return alert("Please enter the OTP.");
 
-function showScore(score) {
-    document.getElementById("healthScore").innerHTML = `<b>Your Health Score: ${score}/100</b>`;
-    if (score > 80) confettiBlast();
+    window.confirmationResult.confirm(otp).then(result => {
+        result.user.getIdToken().then(idToken => {
+            userUID = result.user.uid;
+            document.getElementById("userDisplay").innerText = result.user.phoneNumber;
+
+            const food = prompt("What did you eat in the last 2-3 days? (For Health Score)");
+            if (!food) return alert("Food input is required for health tracking.");
+
+            fetch(`${BACKEND_URL}/verify-otp`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ id_token: idToken, food_history: food })
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById("healthScore").innerHTML = `<b>Your Health Score: ${data.health_score}/100</b>`;
+                if (data.health_score >= 80) confettiBlast();
+            });
+        });
+    }).catch(e => alert("Incorrect OTP. Try again."));
 }
 
 function ask() {
+    if (!userUID) return alert("Please login first!");
+
     const query = document.getElementById("input").value.trim();
     if (!query) return alert("Enter your query first!");
+
     document.getElementById("output").innerHTML = "⏳ Generating...";
+
     fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({message: query, type: currentType, token: token})
+        body: JSON.stringify({ message: query, type: currentType, uid: userUID })
     }).then(r => r.json()).then(data => {
         document.getElementById("output").innerHTML = marked.parse(data.response);
         updateHistory(data.history);
