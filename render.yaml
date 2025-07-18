@@ -2,8 +2,11 @@ services:
   - type: web
     name: medassist-backend
     env: python
+    plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port 10000"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
     envVars:
       - key: GROQ_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
         sync: false
