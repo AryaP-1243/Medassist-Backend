@@ -40,6 +40,11 @@ class AskRequest(BaseModel):
 class HistoryRequest(BaseModel):
     uid: str
 
+# New model for fetching user data
+class UserDataRequest(BaseModel):
+    uid: str
+
+
 # Routes
 @app.get("/health")
 def health():
@@ -68,7 +73,7 @@ Respond ONLY with the score (number)."""
         "food_history": data.food_history,
         "health_score": score,
         "updated_at": datetime.utcnow()
-    }, merge=True)
+    }, merge=True) # Use merge=True to update existing fields without overwriting others
 
     return {"health_score": score}
 
@@ -143,11 +148,7 @@ Mechanism.
         "timestamp": datetime.utcnow()
     })
 
-    # The frontend will now call a separate endpoint to get history
-    # The current 'history' returned here is only for immediate display after a query
-    # and might not represent the "last 5" from all past sessions.
-    # To avoid confusion, we'll rely on the new /get-history endpoint for sidebar.
-    return {"response": reply} # Removed 'history' from here, frontend will fetch it separately
+    return {"response": reply}
 
 @app.post("/get-history")
 def get_history(request: HistoryRequest):
@@ -157,3 +158,24 @@ def get_history(request: HistoryRequest):
     history_docs = history_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
     history = [{"message": doc.to_dict()["message"], "type": doc.to_dict()["type"]} for doc in history_docs]
     return {"history": history}
+
+@app.post("/get-user-data")
+def get_user_data(request: UserDataRequest):
+    """
+    Retrieves a user's food history and health score from Firestore.
+    """
+    user_ref = db.collection('users').document(request.uid)
+    user_doc = user_ref.get()
+
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        return {
+            "food_history": user_data.get("food_history"),
+            "health_score": user_data.get("health_score")
+        }
+    else:
+        # User document doesn't exist, return empty data
+        return {
+            "food_history": None,
+            "health_score": None
+        }
