@@ -36,6 +36,10 @@ class AskRequest(BaseModel):
     type: str
     uid: str
 
+# New model for fetching history
+class HistoryRequest(BaseModel):
+    uid: str
+
 # Routes
 @app.get("/health")
 def health():
@@ -139,8 +143,17 @@ Mechanism.
         "timestamp": datetime.utcnow()
     })
 
-    # Get last 5 history
+    # The frontend will now call a separate endpoint to get history
+    # The current 'history' returned here is only for immediate display after a query
+    # and might not represent the "last 5" from all past sessions.
+    # To avoid confusion, we'll rely on the new /get-history endpoint for sidebar.
+    return {"response": reply} # Removed 'history' from here, frontend will fetch it separately
+
+@app.post("/get-history")
+def get_history(request: HistoryRequest):
+    user_ref = db.collection('users').document(request.uid)
+    history_ref = user_ref.collection('history')
+
     history_docs = history_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
     history = [{"message": doc.to_dict()["message"], "type": doc.to_dict()["type"]} for doc in history_docs]
-
-    return {"response": reply, "history": history}
+    return {"history": history}

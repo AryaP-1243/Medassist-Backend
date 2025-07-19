@@ -41,9 +41,7 @@
   <h1><i class="fa-solid fa-heart-pulse"></i> MedAssist</h1>
 
   <input id="emailInput" placeholder="Enter your Email">
-  <button onclick="sendMagicLink()">Login via Magic Link</button>
-
-  <div id="healthScore"></div>
+  <button onclick="sendMagicLink()">Login via Email Link</button> <div id="healthScore"></div>
 
   <textarea id="input" placeholder="e.g., Tell me about Aspirin or I have a fever"></textarea>
   <div class="type-selection">
@@ -62,7 +60,7 @@
 
 <script>
 // Backend URL
-const BACKEND_URL = "https://medassist-backend-jp57.onrender.com";
+const BACKEND_URL = "https://medassist-backend-jp57.onrender.com"; // Ensure this is correct
 let currentType = 'medicine';
 let userUID = '';
 
@@ -89,37 +87,90 @@ function setType(t) {
 
 function sendMagicLink() {
     const email = document.getElementById("emailInput").value.trim();
-    if (!email) return alert("Enter your email.");
+    if (!email) {
+        alert("Please enter your email address.");
+        return;
+    }
 
     const actionCodeSettings = {
-        url: window.location.href,
+        url: window.location.href, // This URL should be whitelisted in Firebase Auth settings
         handleCodeInApp: true
     };
 
-    auth.sendSignInLinkToEmail(email, actionCodeSettings).then(() => {
-        window.localStorage.setItem('emailForSignIn', email);
-        alert("✅ Magic login link sent! Please check your email.");
-    }).catch(e => alert(e.message));
+    auth.sendSignInLinkToEmail(email, actionCodeSettings)
+        .then(() => {
+            window.localStorage.setItem('emailForSignIn', email);
+            alert("✅ A login link has been sent to your email! Please check your inbox and click the link to sign in.");
+        })
+        .catch(e => {
+            console.error("Error sending magic link:", e);
+            alert(`Error sending login link: ${e.message}`);
+        });
+}
+
+// Function to fetch and update history
+async function fetchAndDisplayHistory(uid) {
+    try {
+        const response = await fetch(`${BACKEND_URL}/get-history`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ uid: uid })
+        });
+        const data = await response.json();
+        updateHistory(data.history);
+    } catch (error) {
+        console.error("Error fetching history:", error);
+        // alert("Failed to load history."); // Uncomment for user feedback
+    }
 }
 
 window.onload = function() {
+    // Check if a user is already signed in (e.g., from a previous session)
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            userUID = user.uid;
+            document.getElementById("userDisplay").innerText = user.email || "Logged in";
+            // Immediately fetch and display history for already logged-in users
+            fetchAndDisplayHistory(userUID);
+
+            // Optionally, fetch health score if it's already stored
+            // You might need a /get-health-score endpoint for this
+        }
+    });
+
+
     if (auth.isSignInWithEmailLink(window.location.href)) {
         let email = window.localStorage.getItem('emailForSignIn');
         if (!email) {
-            email = prompt("Enter your email to complete login:");
+            // Prompt user for email if they opened the link in a different browser/device
+            email = prompt("Please enter your email address to complete login:");
+            if (!email) {
+                alert("Email is required to complete login.");
+                window.history.replaceState({}, document.title, window.location.pathname); // Clean URL
+                return;
+            }
         }
-        auth.signInWithEmailLink(email, window.location.href).then(result => {
-            userUID = result.user.uid;
-            document.getElementById("userDisplay").innerText = email;
 
-            const food = prompt("What did you eat in the last 2-3 days? (For Health Score)");
-            if (!food) return alert("Food input is required.");
+        auth.signInWithEmailLink(email, window.location.href)
+            .then(result => {
+                userUID = result.user.uid;
+                document.getElementById("userDisplay").innerText = result.user.email;
+                window.localStorage.removeItem('emailForSignIn'); // Clean up localStorage
+                window.history.replaceState({}, document.title, window.location.pathname); // Clean up URL
 
-            result.user.getIdToken().then(idToken => {
-                fetch(`${BACKEND_URL}/verify-otp`, {
+                // After successful login, prompt for food history and save user data
+                const food = prompt("Welcome! What did you eat in the last 2-3 days? (For Health Score)");
+                if (!food) {
+                    alert("Food input is recommended for health score calculation.");
+                    // Continue without food if user cancels, but note the missing data
+                    return;
+                }
+
+                // Call the /save-user endpoint (which also calculates health score)
+                fetch(`${BACKEND_URL}/save-user`, {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ id_token: idToken, food_history: food })
+                    body: JSON.stringify({ uid: userUID, food_history: food })
                 })
                 .then(r => r.json())
                 .then(data => {
@@ -129,18 +180,35 @@ window.onload = function() {
                     } else {
                         alert("⚠️ Your score is low! Reduce junk food and eat more healthy items like fruits, vegetables, and grilled options.");
                     }
+                    // Fetch and display history after successful login and save
+                    fetchAndDisplayHistory(userUID);
+                })
+                .catch(error => {
+                    console.error("Error saving user data/calculating score:", error);
+                    alert("Failed to save food history or calculate health score.");
                 });
-            });
 
-        }).catch(e => alert(e.message));
+            })
+            .catch(e => {
+                console.error("Error signing in with email link:", e);
+                alert(`Error completing login: ${e.message}`);
+                window.history.replaceState({}, document.title, window.location.pathname); // Clean URL on error
+            });
     }
 }
 
+
 function ask() {
-    if (!userUID) return alert("Please login first!");
+    if (!userUID) {
+        alert("Please login first to use MedAssist!");
+        return;
+    }
 
     const query = document.getElementById("input").value.trim();
-    if (!query) return alert("Enter your query first!");
+    if (!query) {
+        alert("Please enter your query first!");
+        return;
+    }
 
     document.getElementById("output").innerHTML = "⏳ Generating...";
 
@@ -148,30 +216,74 @@ function ask() {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ message: query, type: currentType, uid: userUID })
-    }).then(r => r.json()).then(data => {
+    })
+    .then(r => r.json())
+    .then(data => {
         document.getElementById("output").innerHTML = marked.parse(data.response);
-        updateHistory(data.history);
+        // After a new query, update the history in the sidebar
+        fetchAndDisplayHistory(userUID);
+    })
+    .catch(error => {
+        console.error("Error asking question:", error);
+        document.getElementById("output").innerHTML = "Error generating response. Please try again.";
     });
 }
 
 function updateHistory(h) {
     const sidebar = document.getElementById("history");
     sidebar.innerHTML = "";
-    h.slice(-5).reverse().forEach(item => {
+    if (h.length === 0) {
+        sidebar.innerHTML = "No history yet.";
+        return;
+    }
+    h.forEach(item => {
         const p = document.createElement('p');
+        p.className = 'history-item'; // Add a class for potential styling
         p.innerHTML = `${item.type === "medicine" ? "💊" : "🩺"} ${item.message}`;
-        p.onclick = () => { document.getElementById('input').value = item.message; ask(); };
+        p.onclick = () => {
+            document.getElementById('input').value = item.message;
+            setType(item.type); // Set the type based on history item
+            ask();
+        };
         sidebar.appendChild(p);
     });
 }
 
 function startVoice() {
+    // Check for browser compatibility
+    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+        alert("Sorry, your browser doesn't support Voice Input. Please use a modern browser like Chrome or Edge.");
+        return;
+    }
+
     const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     rec.lang = "en-IN";
-    rec.onresult = e => {
-        document.getElementById("input").value = e.results[0][0].transcript;
-        ask();
+    rec.interimResults = false; // Only return final results
+    rec.maxAlternatives = 1; // Only return the most likely result
+
+    rec.onstart = () => {
+        document.getElementById("input").placeholder = "Listening...";
+        console.log("Voice recognition started.");
     };
+
+    rec.onresult = e => {
+        const transcript = e.results[0][0].transcript;
+        document.getElementById("input").value = transcript;
+        document.getElementById("input").placeholder = "e.g., Tell me about Aspirin or I have a fever";
+        ask(); // Automatically ask after voice input
+    };
+
+    rec.onerror = e => {
+        console.error("Speech recognition error:", e);
+        document.getElementById("input").placeholder = "e.g., Tell me about Aspirin or I have a fever";
+        alert(`Voice input error: ${e.error}`);
+    };
+
+    rec.onend = () => {
+        document.getElementById("input").placeholder = "e.g., Tell me about Aspirin or I have a fever";
+        console.log("Voice recognition ended.");
+    };
+
     rec.start();
 }
 </script>
