@@ -133,14 +133,28 @@ Recommend hospitals if serious symptoms: Manipal Hospital, Fortis, Narayana Heal
     return ChatResponse(response=reply, chat_history=chat_history)
 
 @app.post("/user/chat-history/delete", response_model=ChatResponse)
-async def delete(req: DeleteChatRequest, uid: str = Depends(get_current_uid)):
-    user_ref = db.collection('users').document(uid)
-    doc = user_ref.get()
-    if not doc.exists: raise HTTPException(404, detail="User not found.")
-    chat_history = doc.to_dict().get('chat_history', [])
-    idx = next((i for i, m in enumerate(chat_history) if m['role'] == 'user' and m['content'] == req.content), -1)
-    if idx != -1:
-        del chat_history[idx:idx+2] if idx+1 < len(chat_history) and chat_history[idx+1]['role']=='assistant' else chat_history.pop(idx)
-        user_ref.update({"chat_history": chat_history})
-    last_response = next((m['content'] for m in reversed(chat_history) if m['role']=='assistant'), "History updated.")
-    return ChatResponse(response=last_response, chat_history=chat_history)
+async def delete_chat_item(request: DeleteChatRequest, uid: str = Depends(get_current_uid)):
+    try:
+        user_ref = db.collection('users').document(uid)
+        doc = user_ref.get()
+        if not doc.exists: 
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        
+        chat_history = doc.to_dict().get('chat_history', [])
+        
+        # Find the index of the message to delete
+        index_to_delete = next((i for i, msg in enumerate(chat_history) if msg.get('role') == 'user' and msg.get('content') == request.content), -1)
+        
+        if index_to_delete != -1:
+            # This is the corrected logic
+            if index_to_delete + 1 < len(chat_history) and chat_history[index_to_delete + 1].get('role') == 'assistant':
+                del chat_history[index_to_delete : index_to_delete + 2]
+            else:
+                del chat_history[index_to_delete]
+            
+            user_ref.update({"chat_history": chat_history})
+
+        last_response = next((m['content'] for m in reversed(chat_history) if m['role'] == 'assistant'), "History updated.")
+        return ChatResponse(response=last_response, chat_history=chat_history)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
