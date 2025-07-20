@@ -41,7 +41,7 @@ app = FastAPI(title="MedAssist API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://aryap-1243.github.io/Medassist-app/", "https://medassist-backend-3.onrender.com", "http://localhost:8080", "https://aryap-1243.github.io", "https://medassist-app.onrender.com"],
+    allow_origins=["https://aryap-1243.github.io/Medassist-app" ,"https://aryap-1243.github.io/Medassist-app/", "http://localhost:8080", "https://aryap-1243.github.io", "https://medassist-app.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
