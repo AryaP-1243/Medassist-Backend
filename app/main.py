@@ -129,19 +129,26 @@ async def get_user_profile(user_request: UserProfileRequest, uid: str = Depends(
 
     if not user_doc.exists:
         user_record = auth.get_user(uid)
+        
+        # This is the data we SAVE to the database
         data_to_save = {
             'email': user_record.email,
             'lastLogin': firestore.SERVER_TIMESTAMP,
-            'chat_history': [],
-            'food_history': None,
-            'health_score': None,
-            'message': None,
-            'suggestions': []
+            'chat_history': []
         }
         user_ref.set(data_to_save)
-        return data_to_save
+
+        # This is the JSON-safe data we RETURN to the frontend
+        data_to_return = {
+            'email': user_record.email,
+            'lastLogin': None,
+            'chat_history': []
+        }
+        return data_to_return
 
     return user_doc.to_dict()
+
+
 # Chat with AI
 @app.post("/ask")
 async def ask(req: ChatRequest, uid: str = Depends(get_current_uid)):
