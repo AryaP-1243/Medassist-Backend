@@ -119,31 +119,29 @@ async def submit_food(req: FoodHistoryRequest, uid: str = Depends(get_current_ui
     }
 
 # User Profile
-@app.post("/user/profile")
-async def get_profile(req: UserProfileRequest, uid: str = Depends(get_current_uid)):
-    if req.uid != uid:
-        raise HTTPException(status_code=403, detail="UID mismatch")
+@app.post("/user/profile", response_model=dict)
+async def get_user_profile(user_request: UserProfileRequest, uid: str = Depends(get_current_uid)):
+    if user_request.uid != uid:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="UID mismatch.")
 
     user_ref = db.collection('users').document(uid)
     user_doc = user_ref.get()
 
     if not user_doc.exists:
         user_record = auth.get_user(uid)
-        user_ref.set({
+        data_to_save = {
             'email': user_record.email,
-            'chat_history': []
-        })
-        return {
-            "email": user_record.email,
-            "food_history": None,
-            "health_score": None,
-            "message": None,
-            "suggestions": [],
-            "chat_history": []
+            'lastLogin': firestore.SERVER_TIMESTAMP,
+            'chat_history': [],
+            'food_history': None,
+            'health_score': None,
+            'message': None,
+            'suggestions': []
         }
+        user_ref.set(data_to_save)
+        return data_to_save
 
     return user_doc.to_dict()
-
 # Chat with AI
 @app.post("/ask")
 async def ask(req: ChatRequest, uid: str = Depends(get_current_uid)):
