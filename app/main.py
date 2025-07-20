@@ -12,176 +12,199 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Initialization with Error Handling ---
-try:
-    firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
-    if not firebase_credentials_json: raise ValueError("FIREBASE_CREDENTIALS_JSON not set.")
-    parsed_credentials_info = json.loads(firebase_credentials_json)
-    cred = credentials.Certificate(parsed_credentials_info)
-    project_id = parsed_credentials_info.get("project_id")
-    if not project_id: raise ValueError("project_id missing in FIREBASE_CREDENTIALS_JSON.")
-    if not firebase_admin._apps:
-        initialize_app(cred, {'projectId': project_id})
-    db = firestore.Client(credentials=cred.get_credential(), project=project_id)
-except Exception as e:
-    raise RuntimeError(f"FATAL: Firebase initialization failed: {e}")
+# Firebase init
+cred_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
+cred_info = json.loads(cred_json)
+cred = credentials.Certificate(cred_info)
+project_id = cred_info["project_id"]
 
-try:
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key: raise ValueError("GROQ_API_KEY not set.")
-    groq_client = Groq(api_key=groq_api_key)
-except Exception as e:
-    raise RuntimeError(f"FATAL: Groq initialization failed: {e}")
+if not firebase_admin._apps:
+    initialize_app(cred, {'projectId': project_id})
 
-# --- FastAPI App ---
-app = FastAPI(title="MedAssist API", version="1.0.0")
+db = firestore.Client(credentials=cred.get_credential(), project=project_id)
+
+# Groq init
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+# FastAPI setup
+app = FastAPI(title="MedAssist API", version="2.0")
+
+origins = [
+    "http://localhost:8000",
+    "https://aryap-1243.github.io",
+    "https://aryap-1243.github.io/Medassist-app/"
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://aryap-1243.github.io/Medassist-Backend/", "https://aryap-1243.github.io", "http://localhost:8080"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
-# --- Pydantic Models ---
+# Models
 class UserProfileRequest(BaseModel):
     uid: str
 
 class FoodHistoryRequest(BaseModel):
     food_history: str
 
-class HealthScoreResponse(BaseModel):
-    health_score: int
-    message: str
-    suggestions: list[str]
-
 class ChatRequest(BaseModel):
     message: str
     type: str
 
-class DeleteChatRequest(BaseModel):
-    content: str
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-    type: str = None
-
-class ChatResponse(BaseModel):
-    response: str
-    chat_history: list[ChatMessage]
-
-# --- Auth Dependency ---
-async def get_current_uid(request: Request) -> str:
-    authorization: str = request.headers.get("Authorization")
-    if not authorization or "Bearer " not in authorization:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token missing or invalid.")
-    token = authorization.split("Bearer ")[1]
+# Auth Dependency
+async def get_current_uid(request: Request):
+    token = request.headers.get("Authorization")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing auth token.")
+    token = token.replace("Bearer ", "")
     try:
-        decoded_token = auth.verify_id_token(token)
-        return decoded_token['uid']
+        decoded = auth.verify_id_token(token)
+        return decoded['uid']
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid auth token: {e}")
+        raise HTTPException(status_code=401, detail=str(e))
 
-# --- API Endpoints ---
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
+# Health score
+@app.post("/user/food-history")
+async def submit_food(req: FoodHistoryRequest, uid: str = Depends(get_current_uid)):
+    prompt = f"""
+    You are a dietitian. Analyze this food history and respond strictly in this format:
 
-@app.post("/user/profile", response_model=dict)
-async def get_user_profile(user_request: UserProfileRequest, uid: str = Depends(get_current_uid)):
-    if user_request.uid != uid:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="UID mismatch")
+    Score: [0-100]
+
+    Message: [Short health feedback]
+
+    Suggestions:
+    - [Tip1]
+    - [Tip2]
+    - [Tip3]
+
+    Food: {req.food_history}
+    """
+
+    res = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {"role": "system", "content": "You are a health AI providing concise health insights."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    ai_output = res.choices[0].message.content
+
+    # Parse response
+    score_match = re.search(r'Score:\s*(\d+)', ai_output)
+    score = int(score_match.group(1)) if score_match else 50
+
+    message_match = re.search(r'Message:\s*(.+)', ai_output)
+    message = message_match.group(1).strip() if message_match else "Could not parse message."
+
+    suggestions = re.findall(r'-\s*(.+)', ai_output)
+
+    user_ref = db.collection('users').document(uid)
+    user_ref.set({
+        'food_history': req.food_history,
+        'health_score': score,
+        'message': message,
+        'suggestions': suggestions,
+        'lastFoodUpdate': firestore.SERVER_TIMESTAMP
+    }, merge=True)
+
+    return {
+        "health_score": score,
+        "message": message,
+        "suggestions": suggestions
+    }
+
+# User Profile
+@app.post("/user/profile")
+async def get_profile(req: UserProfileRequest, uid: str = Depends(get_current_uid)):
+    if req.uid != uid:
+        raise HTTPException(status_code=403, detail="UID mismatch")
+
+    user_ref = db.collection('users').document(uid)
+    user_doc = user_ref.get()
+
+    if not user_doc.exists:
+        user_record = auth.get_user(uid)
+        user_ref.set({
+            'email': user_record.email,
+            'chat_history': []
+        })
+        return {
+            "email": user_record.email,
+            "food_history": None,
+            "health_score": None,
+            "message": None,
+            "suggestions": [],
+            "chat_history": []
+        }
+
+    return user_doc.to_dict()
+
+# Chat with AI
+@app.post("/ask")
+async def ask(req: ChatRequest, uid: str = Depends(get_current_uid)):
     user_ref = db.collection('users').document(uid)
     user_doc = user_ref.get()
     if not user_doc.exists:
-        user_record = auth.get_user(uid)
-        data_to_save = {'email': user_record.email, 'lastLogin': firestore.SERVER_TIMESTAMP, 'chat_history': []}
-        user_ref.set(data_to_save)
-        data_to_return = {'email': user_record.email, 'lastLogin': None, 'chat_history': []}
-        return data_to_return
-    return user_doc.to_dict()
+        raise HTTPException(status_code=404, detail="User not found")
 
-@app.post("/user/food-history", response_model=HealthScoreResponse)
-async def submit_food_history(request: FoodHistoryRequest, uid: str = Depends(get_current_uid)):
-    try:
-        user_ref = db.collection('users').document(uid)
-        prompt = f"Analyze the following food history. Respond strictly in this format:\nScore: [0-100]\nMessage: [Brief comment]\nSuggestions:\n- [Tip 1]\n- [Tip 2]\nFood History: {request.food_history}"
-        completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192"
-        )
-        response = completion.choices[0].message.content
-        
-        score_match = re.search(r'Score:\s*(\d+)', response)
-        health_score = int(score_match.group(1)) if score_match else 50
-        message_match = re.search(r'Message:\s*(.*?)(?=\nSuggestions:|\Z)', response, re.DOTALL | re.IGNORECASE)
-        message = message_match.group(1).strip() if message_match else "AI response could not be parsed."
-        suggestions = re.findall(r'^[ \t]*[\*\-]+\s*(.*)', response, re.MULTILINE)
+    data = user_doc.to_dict()
+    chat_history = data.get('chat_history', [])
 
-        update_data = {
-            'food_history': request.food_history,
-            'health_score': health_score, 'message': message, 'suggestions': suggestions,
-            'lastFoodUpdate': firestore.SERVER_TIMESTAMP
-        }
-        user_ref.set(update_data, merge=True)
-        return HealthScoreResponse(health_score=health_score, message=message, suggestions=suggestions)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    system_prompt = """
+    You are MedAssist, a professional health assistant.
 
-@app.post("/ask", response_model=ChatResponse)
-async def ask_medassist(request: ChatRequest, uid: str = Depends(get_current_uid)):
-    try:
-        user_ref = db.collection('users').document(uid)
-        user_doc = user_ref.get()
-        if not user_doc.exists:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    - If the user asks for medicines, suggest relevant ones (no hardcoding). Use AI reasoning.
+    - Provide 1mg.com links for each medicine: https://www.1mg.com/search/all?name=MedicineName
+    - Suggest hospitals in Bengaluru: Manipal Hospital, Fortis Bannerghatta, Narayana Health City.
+    - Do not make direct diagnoses. Say: "Possible conditions include..."
+    - Place this disclaimer at the bottom: "**Disclaimer:** This is not medical advice. Consult a doctor."
+    """
 
-        user_data = user_doc.to_dict()
-        chat_history = user_data.get('chat_history', [])
+    context = []
+    for msg in chat_history[-5:]:
+        context.append({"role": msg['role'], "content": msg['content']})
 
-        system_prompt = """You are MedAssist, an AI health guide. Your tone is professional and supportive.
-        CRITICAL INSTRUCTIONS:
-        1.  Disclaimer: ALWAYS start your response with: "**Disclaimer:** This information is for educational purposes only. Consult a qualified medical professional for diagnosis and treatment."
-        2.  Medicine Links: When you mention a specific medicine, you MUST format it as a markdown link for 1mg. Example: For Paracetamol, you must write `[Paracetamol](https://www.1mg.com/search/all?name=Paracetamol)`.
-        3.  Hospital Recommendations: If symptoms may require a doctor, recommend these Bengaluru hospitals: Manipal Hospital (Old Airport Road), Fortis Hospital (Bannerghatta Road), and Narayana Health City.
-        """
-        context = [{"role": m['role'], "content": m['content']} for m in chat_history[-10:]]
-        messages = [{"role": "system", "content": system_prompt}] + context + [{"role": "user", "content": request.message}]
+    context.append({"role": "user", "content": req.message})
 
-        completion = groq_client.chat.completions.create(messages=messages, model="llama3-8b-8192")
-        assistant_response = completion.choices[0].message.content
+    response = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[{"role": "system", "content": system_prompt}] + context
+    )
 
-        chat_history.append({"role": "user", "content": request.message, "type": request.type})
-        chat_history.append({"role": "assistant", "content": assistant_response})
-        user_ref.update({"chat_history": chat_history})
+    ai_reply = response.choices[0].message.content
 
-        return ChatResponse(response=assistant_response, chat_history=chat_history)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    # Append disclaimer at bottom only
+    ai_reply += "\n\n**Disclaimer:** This is not medical advice. Consult a doctor."
 
-@app.post("/user/chat-history/delete", response_model=ChatResponse)
-async def delete_chat_item(request: DeleteChatRequest, uid: str = Depends(get_current_uid)):
-    try:
-        user_ref = db.collection('users').document(uid)
-        user_doc = user_ref.get()
-        if not user_doc.exists:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        
-        chat_history = user_doc.to_dict().get('chat_history', [])
-        
-        index_to_delete = next((i for i, msg in enumerate(chat_history) if msg.get('role') == 'user' and msg.get('content') == request.content), -1)
-        
-        if index_to_delete != -1:
-            # If there's an assistant message right after, remove both
-            if index_to_delete + 1 < len(chat_history) and chat_history[index_to_delete + 1].get('role') == 'assistant':
-                del chat_history[index_to_delete : index_to_delete + 2]
-            else: # Otherwise, just remove the user message
-                del chat_history[index_to_delete]
-            user_ref.update({"chat_history": chat_history})
+    # Update history
+    chat_history.append({"role": "user", "content": req.message, "type": req.type})
+    chat_history.append({"role": "assistant", "content": ai_reply})
 
-        last_response = next((m['content'] for m in reversed(chat_history) if m['role'] == 'assistant'), "History updated.")
-        return ChatResponse(response=last_response, chat_history=chat_history)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    user_ref.update({'chat_history': chat_history})
+
+    return {"response": ai_reply, "chat_history": chat_history}
+
+# Delete chat history
+@app.post("/user/chat-history/delete")
+async def delete_chat(req: dict, uid: str = Depends(get_current_uid)):
+    content = req.get("content")
+    user_ref = db.collection('users').document(uid)
+    doc = user_ref.get()
+    if not doc.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+
+    data = doc.to_dict()
+    new_history = [msg for msg in data.get('chat_history', []) if msg.get('content') != content]
+    user_ref.update({'chat_history': new_history})
+
+    return {"chat_history": new_history}
+
+# Health check
+@app.get("/health")
+def health():
+    return {"status": "ok"}
